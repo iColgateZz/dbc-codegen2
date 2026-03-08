@@ -175,6 +175,19 @@ impl RustGen {
         self.write_line(indent + 8, "}");
         self.write_line(indent + 4, "}");
         self.write_line(indent, "}");
+        
+        self.write_newline();
+        
+        self.write_line(indent, &format!("impl From<{}> for u8 {{", &signal_name));
+        self.write_line(indent + 4, &format!("fn from(val: {}) -> u8 {{", &signal_name));
+        self.write_line(indent + 8, "match val {");
+        for value_desc in &signal.value_descriptions {
+            self.write_line(indent + 12, &format!("{}::{} => {},", &signal_name, &value_desc.description, &value_desc.value));
+        }
+        self.write_line(indent + 12, &format!("{}::_Other(v) => v,", &signal_name));
+        self.write_line(indent + 8, "}");
+        self.write_line(indent + 4, "}");
+        self.write_line(indent, "}");
     }
 
     fn derive(&mut self, indent: usize) {
