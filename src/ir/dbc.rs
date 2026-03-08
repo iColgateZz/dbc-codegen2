@@ -32,7 +32,7 @@ impl DbcFile {
 
         for message in &mut file.messages {
             for signal in &mut message.signals {
-                let key = (message.id.clone(), signal.orignial_name.0.clone());
+                let key = (message.id.clone(), signal.original_name.0.clone());
                 if let Some(descs) = value_desc_map.remove(&key) {
                     signal.value_descriptions = descs;
                 }
