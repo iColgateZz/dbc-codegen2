@@ -35,10 +35,45 @@ impl Msg {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+#[repr(u8)]
+pub enum EngineMode {
+    Off   = 0,
+    Idle  = 1,
+    Drive = 2,
+    Sport = 3,
+    _Other(u8),
+}
+
+impl From<u8> for EngineMode {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Off,
+            1 => Self::Idle,
+            2 => Self::Drive,
+            3 => Self::Sport,
+            _ => Self::_Other(value),
+        }
+    }
+}
+
+impl From<EngineMode> for u8 {
+    fn from(val: EngineMode) -> u8 {
+        match val {
+            EngineMode::Off        => 0,
+            EngineMode::Idle       => 1,
+            EngineMode::Drive      => 2,
+            EngineMode::Sport      => 3,
+            EngineMode::_Other(v)  => v,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EngineData {
     pub rpm: f32,
     pub speed: f32,
+    pub engine_mode: EngineMode,
 }
 
 impl EngineData {
@@ -56,6 +91,7 @@ impl CanMessage<{ EngineData::LEN }> for EngineData {
         Ok(Self {
             rpm: raw_rpm as f32 * 0.125,
             speed: raw_speed as f32 * 0.01,
+            engine_mode: EngineMode::from(data[4]),
         })
     }
 
@@ -72,6 +108,7 @@ impl CanMessage<{ EngineData::LEN }> for EngineData {
         data[1] = rpm_bytes[1];
         data[2] = speed_bytes[0];
         data[3] = speed_bytes[1];
+        data[4] = u8::from(self.engine_mode.clone());
 
         let id = Id::Extended(ExtendedId::new(Self::ID).unwrap());
         (id, data)
