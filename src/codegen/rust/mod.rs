@@ -136,7 +136,6 @@ impl RustGen {
                 self.signal_value_enum(signal, indent);
             }
         }
-        self.write_newline();
 
         // #[derive(...)]
         self.derive(indent);
@@ -155,39 +154,71 @@ impl RustGen {
     fn signal_value_enum(&mut self, signal: &Signal, indent: usize) {
         let signal_name = &signal.name.0.0.to_upper_camelcase();
 
-        self.write_line(indent, "#[derive(Debug, Clone, PartialEq)]");
-        self.write_line(indent, &format!("pub enum {} {{", &signal_name));
+        self.write_line(indent, "#[derive(Debug, Clone, Copy, PartialEq, Eq)]");
+        self.write_line(indent, &format!("pub enum {} {{", signal_name));
         for value_desc in &signal.value_descriptions {
-            self.write_line(indent + 4, &format!("{},", &value_desc.description));
+            self.write_line(indent + 4, &format!("{},", value_desc.description));
         }
         self.write_line(indent + 4, "_Other(u8),");
         self.write_line(indent, "}");
-
         self.write_newline();
 
-        self.write_line(indent, &format!("impl From<u8> for {} {{", &signal_name));
-        self.write_line(indent + 4, "fn from(val: u8) -> Self {");
-        self.write_line(indent + 8, "match val {");
-        for value_desc in &signal.value_descriptions {
-            self.write_line(indent + 12, &format!("{} => Self::{},", &value_desc.value, &value_desc.description));
+        let arms_from: Vec<(String, String)> = signal
+            .value_descriptions
+            .iter()
+            .map(|vd| (vd.value.to_string(), format!("Self::{}", vd.description)))
+            .collect();
+        self.write_from_impl(
+            indent,
+            "u8",
+            signal_name,
+            &arms_from,
+            "_ => Self::_Other(val),",
+        );
+
+        let arms_into: Vec<(String, String)> = signal
+            .value_descriptions
+            .iter()
+            .map(|vd| {
+                (
+                    format!("{}::{}", signal_name, vd.description),
+                    vd.value.to_string(),
+                )
+            })
+            .collect();
+        let fallback_into = format!("{}::_Other(v) => v,", signal_name);
+        self.write_from_impl(indent, signal_name, "u8", &arms_into, &fallback_into);
+    }
+
+    fn write_match_block(&mut self, indent: usize, arms: &[(String, String)], fallback: &str) {
+        self.write_line(indent, "match val {");
+        for (pattern, body) in arms {
+            self.write_line(indent + 4, &format!("{} => {},", pattern, body));
         }
-        self.write_line(indent + 12, "_ => Self::_Other(val),");
-        self.write_line(indent + 8, "}");
+        self.write_line(indent + 4, fallback);
+        self.write_line(indent, "}");
+    }
+
+    fn write_from_impl(
+        &mut self,
+        indent: usize,
+        from_type: &str,
+        to_type: &str,
+        arms: &[(String, String)],
+        fallback: &str,
+    ) {
+        self.write_line(
+            indent,
+            &format!("impl From<{}> for {} {{", from_type, to_type),
+        );
+        self.write_line(
+            indent + 4,
+            &format!("fn from(val: {}) -> {} {{", from_type, to_type),
+        );
+        self.write_match_block(indent + 8, arms, fallback);
         self.write_line(indent + 4, "}");
         self.write_line(indent, "}");
-        
         self.write_newline();
-        
-        self.write_line(indent, &format!("impl From<{}> for u8 {{", &signal_name));
-        self.write_line(indent + 4, &format!("fn from(val: {}) -> u8 {{", &signal_name));
-        self.write_line(indent + 8, "match val {");
-        for value_desc in &signal.value_descriptions {
-            self.write_line(indent + 12, &format!("{}::{} => {},", &signal_name, &value_desc.description, &value_desc.value));
-        }
-        self.write_line(indent + 12, &format!("{}::_Other(v) => v,", &signal_name));
-        self.write_line(indent + 8, "}");
-        self.write_line(indent + 4, "}");
-        self.write_line(indent, "}");
     }
 
     fn derive(&mut self, indent: usize) {
