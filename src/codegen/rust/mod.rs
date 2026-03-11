@@ -221,16 +221,46 @@ impl ToTokens for SignalValueEnum<'_> {
 
         let enum_name = format_ident!("{}", signal.name.0.0.to_upper_camelcase());
 
-        let variants = signal.value_descriptions.iter().map(|desc| {
-            let name = format_ident!("{}", desc.description);
+        let variants = signal.value_descriptions.iter().map(|vd| {
+            let name = format_ident!("{}", vd.description);
             quote! { #name }
         });
 
+        let from_arms = signal.value_descriptions.iter().map(|vd| {
+            let name = format_ident!("{}", vd.description);
+            let value = vd.value;
+            quote! { #value => Self::#name }
+        });
+
+        let into_arms = signal.value_descriptions.iter().map(|vd| {
+            let name = format_ident!("{}", vd.description);
+            let value = vd.value;
+            quote! { #enum_name::#name => #value }
+        });
+
         quote! {
-            #[derive(Debug, Clone, PartialEq)]
+            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             pub enum #enum_name {
                 #( #variants, )*
                 _Other(u8),
+            }
+
+            impl From<u8> for #enum_name {
+                fn from(val: u8) -> Self {
+                    match val {
+                        #( #from_arms, )*
+                        _ => Self::_Other(val),
+                    }
+                }
+            }
+
+            impl From<#enum_name> for u8 {
+                fn from(val: #enum_name) -> Self {
+                    match val {
+                        #( #into_arms, )*
+                        #enum_name::_Other(v) => v,
+                    }
+                }
             }
         }.to_tokens(tokens);
     }
