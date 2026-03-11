@@ -41,8 +41,7 @@ fn main() {
         "gen" => {
             let index = get_index(&args, 2).expect("Could not get index!");
             let dbc = DbcFile::from_dbc(parse_dbc_file(FILEPATHS[index]));
-            let generator = codegen::rust::RustGen::new();
-            let code = generator.generate(&dbc.messages);
+            let code = codegen::rust::RustGen::generate(&dbc.messages);
             let mut out = File::create("src/codegen/rust/test.rs").unwrap();
             write!(out, "{}", code).unwrap();
         }
