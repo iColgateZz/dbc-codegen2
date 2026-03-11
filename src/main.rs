@@ -42,7 +42,7 @@ fn main() {
             let index = get_index(&args, 2).expect("Could not get index!");
             let dbc = DbcFile::from_dbc(parse_dbc_file(FILEPATHS[index]));
             let code = codegen::rust::RustGen::generate(&dbc.messages);
-            let mut out = File::create("src/codegen/rust/test.rs").unwrap();
+            let mut out = File::create("src/codegen/rust/test_data/test.rs").unwrap();
             write!(out, "{}", code).unwrap();
         }
         _ => {
