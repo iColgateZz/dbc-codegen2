@@ -37,7 +37,7 @@ impl From<ParsedSignal> for Signal {
             max: value.max,
             unit: value.unit,
             receivers: map_into(value.receivers),
-            value_descriptions: vec![]
+            value_descriptions: vec![],
         }
     }
 }

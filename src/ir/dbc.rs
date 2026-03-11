@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::{Message, MessageId, Node, ValueDescription, ToUpperCamelCase, map_into};
+use crate::ir::{Message, MessageId, Node, ToUpperCamelCase, ValueDescription, map_into};
 use can_dbc::Dbc as ParsedDbc;
 
 #[derive(Debug, Clone)]
@@ -20,7 +20,11 @@ impl DbcFile {
                         .iter()
                         .map(|vd| ValueDescription {
                             value: vd.id,
-                            description: vd.description.clone().replace(&sig.name, "").to_upper_camelcase(),
+                            description: vd
+                                .description
+                                .clone()
+                                .replace(&sig.name, "")
+                                .to_upper_camelcase(),
                         })
                         .collect();
                     Some(((MessageId::from(msg.id), sig.name.clone()), converted))
