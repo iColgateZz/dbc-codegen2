@@ -1,13 +1,13 @@
-use crate::ir::{Identifier, NodeName, SignalValueEnum, map_into};
+use crate::ir::{NodeName, SignalValueEnum, map_into};
 use can_dbc::ByteOrder as ParsedByteOrder;
 use can_dbc::MultiplexIndicator as ParsedMultiplexIndicator;
 use can_dbc::Signal as ParsedSignal;
 use can_dbc::ValueType as ParsedValueType;
+use crate::utils::ToUpperCamelCase;
 
 #[derive(Debug, Clone)]
 pub struct Signal {
-    pub name: Identifier,
-    pub original_name: Identifier,
+    pub name: SignalName,
     pub multiplexer: MultiplexIndicator,
     pub start_bit: u64,
     pub size: u64,
@@ -24,10 +24,7 @@ pub struct Signal {
 impl From<ParsedSignal> for Signal {
     fn from(value: ParsedSignal) -> Self {
         Signal {
-            //TODO: mv name sanitization to a transfornmation node
-            //      maybe .to_upper_camelcase()?
-            name: Identifier(value.name.to_lowercase()),
-            original_name: Identifier(value.name),
+            name: SignalName(value.name),
             multiplexer: MultiplexIndicator::from(value.multiplexer_indicator),
             start_bit: value.start_bit,
             size: value.size,
@@ -41,6 +38,23 @@ impl From<ParsedSignal> for Signal {
             receivers: map_into(value.receivers),
             signal_value_enum: None,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SignalName(String);
+
+impl SignalName {
+    pub fn raw(&self) -> &str {
+        &self.0
+    }
+
+    pub fn lower(&self) -> String {
+        self.0.to_lowercase()
+    }
+
+    pub fn upper_camel(&self) -> String {
+        self.0.to_upper_camelcase()
     }
 }
 

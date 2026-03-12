@@ -121,7 +121,7 @@ impl ToTokens for MessageDef<'_> {
         let value_enums = msg.signals.iter().map(|s| SignalValueEnum { signal: s });
 
         let fields = msg.signals.iter().map(|sig| {
-            let field = format_ident!("{}", sig.name.0);
+            let field = format_ident!("{}", sig.name.lower());
             quote! { pub #field: f64 }
         });
 
@@ -141,7 +141,7 @@ impl ToTokens for MessageDef<'_> {
         let try_from = {
             let mut byte = 0usize;
             let reads = msg.signals.iter().map(|sig| {
-                let raw = format_ident!("raw_{}", sig.name.0);
+                let raw = format_ident!("raw_{}", sig.name.lower());
                 let b0 = byte;
                 let b1 = byte + 1;
                 byte += 2;
@@ -149,8 +149,8 @@ impl ToTokens for MessageDef<'_> {
             });
 
             let fields = msg.signals.iter().map(|sig| {
-                let field = format_ident!("{}", sig.name.0);
-                let raw = format_ident!("raw_{}", sig.name.0);
+                let field = format_ident!("{}", sig.name.lower());
+                let raw = format_ident!("raw_{}", sig.name.lower());
                 let factor = sig.factor;
                 quote! { #field: #raw as f64 * #factor }
             });
@@ -223,7 +223,7 @@ impl ToTokens for SignalValueEnum<'_> {
             return;
         };
 
-        let enum_name = format_ident!("{}", enum_def.signal_name);
+        let enum_name = format_ident!("{}", signal.name.upper_camel());
 
         let variants = enum_def.variants.iter().map(|vd| {
             let name = format_ident!("{}", vd.description);

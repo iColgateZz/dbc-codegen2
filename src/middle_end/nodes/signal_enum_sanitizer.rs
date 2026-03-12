@@ -1,4 +1,4 @@
-use super::helpers::ToUpperCamelCase;
+use crate::utils::ToUpperCamelCase;
 use super::transformation::TransformationNode;
 
 /// Sanitize the names of SignalValueEnum variants.

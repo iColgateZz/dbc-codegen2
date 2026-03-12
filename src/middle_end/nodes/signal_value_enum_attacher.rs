@@ -12,7 +12,7 @@ impl TransformationNode for AttachSignalValueEnums {
                 signal.signal_value_enum = file
                     .signal_value_enums
                     .iter()
-                    .find(|v| v.message_id == msg.id && v.signal_name == signal.original_name.0)
+                    .find(|v| v.message_id == msg.id && v.signal_name == signal.name.raw())
                     .cloned();
             }
         }
