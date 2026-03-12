@@ -6,4 +6,5 @@ pub use ir::dbc::DbcFile;
 pub mod app;
 pub mod codegen;
 pub mod middle_end;
+pub mod utils;
 // pub mod messages;
