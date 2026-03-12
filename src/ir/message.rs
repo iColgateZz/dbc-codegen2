@@ -8,7 +8,6 @@ use can_dbc::Transmitter as ParsedTransmitter;
 pub struct Message {
     pub id: MessageId,
     pub name: Identifier,
-    pub original_name: Identifier,
     pub size: u64,
     pub transmitter: Transmitter,
     pub signals: Vec<Signal>,
@@ -17,8 +16,7 @@ impl From<ParsedMessage> for Message {
     fn from(value: ParsedMessage) -> Self {
         Message {
             id: MessageId::from(value.id),
-            name: Identifier("".to_string()),
-            original_name: Identifier(value.name),
+            name: Identifier(value.name),
             size: value.size,
             transmitter: Transmitter::from(value.transmitter),
             signals: map_into(value.signals),
