@@ -1,4 +1,4 @@
-use crate::nodes::transformation_node::TransformationNode;
+use super::transformation_node::TransformationNode;
 
 /// Attach a SignalValueEnum to a Signal if there is one
 /// matching the message ID and signal name

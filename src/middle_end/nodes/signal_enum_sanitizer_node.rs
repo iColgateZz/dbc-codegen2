@@ -1,6 +1,9 @@
-use crate::nodes::transformation_node::TransformationNode;
-use crate::nodes::helpers::ToUpperCamelCase;
+use super::transformation_node::TransformationNode;
+use super::helpers::ToUpperCamelCase;
 
+/// Sanitize the names of SignalValueEnum variants.
+/// Remove the name of the signal and convert to
+/// upper camelcase.
 pub struct SanitizeSignalEnumVariantNames;
 
 impl TransformationNode for SanitizeSignalEnumVariantNames {
