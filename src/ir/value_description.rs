@@ -4,9 +4,9 @@ use can_dbc::ValDescription as ParsedValDescription;
 
 #[derive(Debug, Clone)]
 pub struct SignalValueEnum {
-    message_id: MessageId,
-    signal_name: String,
-    variants: Vec<ValueDescription>,
+    pub message_id: MessageId,
+    pub signal_name: String,
+    pub variants: Vec<ValueDescription>,
 }
 
 #[derive(Debug, Clone)]
