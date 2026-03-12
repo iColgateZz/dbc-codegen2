@@ -1,83 +1,97 @@
 use can_dbc::Dbc as ParsedDbc;
 use dbc_codegen::{DbcFile, app::App};
+use clap::{Parser, Subcommand};
 use std::{
-    env,
     fs::{self, File},
     io::{BufWriter, Write},
 };
 
-const FILEPATHS: [&str; 5] = [
-    "resources/example.dbc",
-    "resources/BMW-PHEV-HV-Battery.dbc",
-    "resources/Kangoo.dbc",
-    "resources/VW-GTE-HV-Battery.dbc",
-    "resources/simple.dbc",
-];
-const MAX_INDEX: usize = FILEPATHS.len();
+#[derive(Parser)]
+#[command(name = "dbc-codegen")]
+#[command(about = "DBC code generator", long_about = None)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Subcommand)]
+pub enum Command {
+    /// Parse a DBC file and print parsed output
+    Parse {
+        /// Input file path
+        input: String,
+        /// Output file
+        #[arg(short, long, default_value = "data/parsed_can_dbc.txt")]
+        output: String,
+    },
+
+    /// Show intermediate representation
+    Ir {
+        /// Input file path
+        input: String,
+        /// Output file
+        #[arg(short, long, default_value = "data/ir.txt")]
+        output: String,
+    },
+
+    /// Generate code from DBC
+    Gen {
+        /// Input file path
+        input: String,
+        /// Output file
+        #[arg(short, long, default_value = "data/generated.rs")]
+        output: String,
+    },
+}
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let cli = Cli::parse();
 
-    if args.len() < 2 {
-        print_usage();
-        return;
-    }
-
-    let command = &args[1];
-
-    match command.as_str() {
-        "parse" => {
-            let dbc = parse_dbc_file(FILEPATHS[0]);
-            if let Err(e) = write_parsed_dbc(dbc) {
+    match cli.command {
+        Command::Parse { input, output } => {
+            let dbc = parse_dbc_file(&input);
+            if let Err(e) = write_parsed_dbc(dbc, &output) {
                 eprintln!("Error parsing dbc: {e}");
             }
         }
-        "ir" => {
-            let index = get_index(&args, 2).expect("Could not get index!");
-            let dbc = parse_dbc_file(FILEPATHS[index]);
+
+        Command::Ir { input, output } => {
+            let dbc = parse_dbc_file(&input);
             let ir = DbcFile::from_dbc(dbc);
-            println!("{:#?}", ir);
+            if let Err(e) = write_ir(ir, &output) {
+                eprintln!("Error writing IR: {e}");
+            }
         }
-        "gen" => {
-            let index = get_index(&args, 2).expect("Could not get index!");
-            let code = App::convert(FILEPATHS[index]);
-            let mut out = File::create("data/test.rs").unwrap();
+
+        Command::Gen { input, output } => {
+            let code = App::convert(&input);
+            let mut out = File::create(output).unwrap();
             write!(out, "{}", code).unwrap();
         }
-        _ => {
-            eprintln!("Unknown command: {command}");
-            print_usage();
-        }
     }
 }
 
-fn get_index(args: &[String], position: usize) -> Option<usize> {
-    if args.len() < 3 {
-        println!("Add index as well!");
-        print_usage();
-        return None;
-    }
+fn write_parsed_dbc(dbc: ParsedDbc, output: &str) -> std::io::Result<()> {
+    let output_file = File::create(output)?;
+    let mut writer = BufWriter::new(output_file);
 
-    args[position].parse().ok()
+    writeln!(writer, "// Generated file with parsed can_dbc structs")?;
+    writeln!(writer, "{:#?}", dbc.messages)?;
+
+    Ok(())
 }
 
-fn print_usage() {
-    println!("Usage:");
-    println!("  cargo run test");
-    println!("  cargo run test-ir <index 0..{MAX_INDEX}>");
+fn write_ir(ir: DbcFile, output: &str) -> std::io::Result<()> {
+    let output_file = File::create(output)?;
+    let mut writer = BufWriter::new(output_file);
+
+    writeln!(writer, "// Generated file with IR")?;
+    writeln!(writer, "{:#?}", ir)?;
+
+    Ok(())
 }
 
 pub fn parse_dbc_file(file_path: &str) -> ParsedDbc {
     let data = fs::read_to_string(file_path).expect("Unable to read input file");
     ParsedDbc::try_from(data.as_str()).unwrap()
-}
-
-fn write_parsed_dbc(dbc: ParsedDbc) -> std::io::Result<()> {
-    let output_file = File::create("test.txt")?;
-    let mut writer = BufWriter::new(output_file);
-
-    writeln!(writer, "// Generated test file")?;
-    writeln!(writer, "{:#?}", dbc.messages)?;
-
-    Ok(())
 }
