@@ -36,13 +36,13 @@ impl Msg {
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum driver_heartbeat_cmd {
+pub enum DriverHeartbeatCmd {
     Reboot,
     Sync,
     Noop,
     _Other(u8),
 }
-impl From<u8> for driver_heartbeat_cmd {
+impl From<u8> for DriverHeartbeatCmd {
     fn from(val: u8) -> Self {
         match val {
             2i64 => Self::Reboot,
@@ -52,13 +52,13 @@ impl From<u8> for driver_heartbeat_cmd {
         }
     }
 }
-impl From<driver_heartbeat_cmd> for u8 {
-    fn from(val: driver_heartbeat_cmd) -> Self {
+impl From<DriverHeartbeatCmd> for u8 {
+    fn from(val: DriverHeartbeatCmd) -> Self {
         match val {
-            driver_heartbeat_cmd::Reboot => 2i64,
-            driver_heartbeat_cmd::Sync => 1i64,
-            driver_heartbeat_cmd::Noop => 0i64,
-            driver_heartbeat_cmd::_Other(v) => v,
+            DriverHeartbeatCmd::Reboot => 2i64,
+            DriverHeartbeatCmd::Sync => 1i64,
+            DriverHeartbeatCmd::Noop => 0i64,
+            DriverHeartbeatCmd::_Other(v) => v,
         }
     }
 }
@@ -85,12 +85,12 @@ impl CanMessage<{ DriverHeartbeat::LEN }> for DriverHeartbeat {
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum io_debug_test_enum {
+pub enum IoDebugTestEnum {
     IoDebugTest2EnumTwo,
     IoDebugTest2EnumOne,
     _Other(u8),
 }
-impl From<u8> for io_debug_test_enum {
+impl From<u8> for IoDebugTestEnum {
     fn from(val: u8) -> Self {
         match val {
             2i64 => Self::IoDebugTest2EnumTwo,
@@ -99,12 +99,12 @@ impl From<u8> for io_debug_test_enum {
         }
     }
 }
-impl From<io_debug_test_enum> for u8 {
-    fn from(val: io_debug_test_enum) -> Self {
+impl From<IoDebugTestEnum> for u8 {
+    fn from(val: IoDebugTestEnum) -> Self {
         match val {
-            io_debug_test_enum::IoDebugTest2EnumTwo => 2i64,
-            io_debug_test_enum::IoDebugTest2EnumOne => 1i64,
-            io_debug_test_enum::_Other(v) => v,
+            IoDebugTestEnum::IoDebugTest2EnumTwo => 2i64,
+            IoDebugTestEnum::IoDebugTest2EnumOne => 1i64,
+            IoDebugTestEnum::_Other(v) => v,
         }
     }
 }

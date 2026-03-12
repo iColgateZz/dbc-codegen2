@@ -2,7 +2,7 @@ use can_dbc::Dbc as ParsedDbc;
 use std::fs;
 
 use crate::codegen;
-use crate::middle_end::nodes::SanitizeMessageNames;
+use crate::middle_end::nodes::{SanitizeMessageNames, SanitizeSignalEnumSignalNames, SanitizeSignalNames};
 use crate::{
     DbcFile,
     middle_end::{
@@ -22,9 +22,11 @@ impl App {
 
         //TODO: give user options to add new nodes/remove nodes
         TransformationPipeline::new()
+            .add(SanitizeSignalNames)
             .add(SanitizeMessageNames)
             .add(SanitizeSignalEnumVariantNames)
             .add(AttachSignalValueEnums)
+            .add(SanitizeSignalEnumSignalNames)
             .run(&mut dbc);
 
         codegen::rust::RustGen::generate(&dbc.messages)
