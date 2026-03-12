@@ -1,4 +1,4 @@
-use crate::ir::{Message, Node, map_into, SignalValueEnum};
+use crate::ir::{Message, Node, SignalValueEnum, map_into};
 use can_dbc::Dbc as ParsedDbc;
 
 #[derive(Debug, Clone)]
@@ -16,7 +16,8 @@ impl DbcFile {
 
 impl From<ParsedDbc> for DbcFile {
     fn from(value: ParsedDbc) -> Self {
-        let enums = value.value_descriptions
+        let enums = value
+            .value_descriptions
             .into_iter()
             .filter_map(|v| SignalValueEnum::try_from(v).ok())
             .collect();

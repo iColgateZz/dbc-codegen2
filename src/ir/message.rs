@@ -1,5 +1,5 @@
 use crate::ir::map_into;
-use crate::ir::{Identifier, Signal, NodeName};
+use crate::ir::{Identifier, NodeName, Signal};
 use can_dbc::Message as ParsedMessage;
 use can_dbc::MessageId as ParsedMessageId;
 use can_dbc::Transmitter as ParsedTransmitter;
@@ -53,4 +53,3 @@ impl From<ParsedTransmitter> for Transmitter {
         }
     }
 }
-

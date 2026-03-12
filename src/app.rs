@@ -3,7 +3,13 @@ use std::fs;
 
 use crate::codegen;
 use crate::middle_end::nodes::SanitizeMessageNames;
-use crate::{DbcFile, middle_end::{nodes::{AttachSignalValueEnums, SanitizeSignalEnumVariantNames}, pipeline::transform_pipeline::TransformationPipeline}};
+use crate::{
+    DbcFile,
+    middle_end::{
+        nodes::{AttachSignalValueEnums, SanitizeSignalEnumVariantNames},
+        pipeline::transform_pipeline::TransformationPipeline,
+    },
+};
 
 //TODO: this definetely has to have some flags
 //      At least to chose between rust and c++
@@ -24,4 +30,3 @@ impl App {
         codegen::rust::RustGen::generate(&dbc.messages)
     }
 }
-

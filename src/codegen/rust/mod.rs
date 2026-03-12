@@ -1,9 +1,9 @@
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::File;
 
 use crate::ir::message::{Message, MessageId};
-use crate::ir::signal::{Signal};
+use crate::ir::signal::Signal;
 
 pub struct RustGen;
 
@@ -45,7 +45,8 @@ impl ToTokens for ErrorEnum {
                 Err1,
                 Err2,
             }
-        }.to_tokens(tokens);
+        }
+        .to_tokens(tokens);
     }
 }
 
@@ -58,7 +59,8 @@ impl ToTokens for MsgTrait {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError>;
                 fn encode(&self) -> (Id, [u8; LEN]);
             }
-        }.to_tokens(tokens);
+        }
+        .to_tokens(tokens);
     }
 }
 
@@ -78,7 +80,8 @@ impl ToTokens for MsgEnum<'_> {
             pub enum Msg {
                 #( #variants, )*
             }
-        }.to_tokens(tokens);
+        }
+        .to_tokens(tokens);
 
         let arms = self.messages.iter().map(|msg| {
             let name = format_ident!("{}", msg.name.0);
@@ -101,7 +104,8 @@ impl ToTokens for MsgEnum<'_> {
                     Ok(result)
                 }
             }
-        }.to_tokens(tokens);
+        }
+        .to_tokens(tokens);
     }
 }
 
@@ -202,7 +206,8 @@ impl ToTokens for MessageDef<'_> {
 
                 #encode
             }
-        }.to_tokens(tokens);
+        }
+        .to_tokens(tokens);
     }
 }
 
@@ -261,6 +266,7 @@ impl ToTokens for SignalValueEnum<'_> {
                     }
                 }
             }
-        }.to_tokens(tokens);
+        }
+        .to_tokens(tokens);
     }
 }

@@ -1,4 +1,4 @@
-use crate::ir::{Identifier, NodeName, map_into, SignalValueEnum};
+use crate::ir::{Identifier, NodeName, SignalValueEnum, map_into};
 use can_dbc::ByteOrder as ParsedByteOrder;
 use can_dbc::MultiplexIndicator as ParsedMultiplexIndicator;
 use can_dbc::Signal as ParsedSignal;

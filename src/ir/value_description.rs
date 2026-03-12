@@ -1,6 +1,6 @@
 use crate::ir::{MessageId, map_into};
-use can_dbc::ValueDescription as ParsedValueDescription;
 use can_dbc::ValDescription as ParsedValDescription;
+use can_dbc::ValueDescription as ParsedValueDescription;
 
 #[derive(Debug, Clone)]
 pub struct SignalValueEnum {
