@@ -1,8 +1,9 @@
 use crate::ir::helpers::ToUpperCamelCase;
 use crate::ir::map_into;
-use crate::ir::{Identifier, Signal, Transmitter};
+use crate::ir::{Identifier, Signal, NodeName};
 use can_dbc::Message as ParsedMessage;
 use can_dbc::MessageId as ParsedMessageId;
+use can_dbc::Transmitter as ParsedTransmitter;
 
 #[derive(Debug, Clone)]
 pub struct Message {
@@ -39,3 +40,18 @@ impl From<ParsedMessageId> for MessageId {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub enum Transmitter {
+    Node(NodeName),
+    VectorXXX,
+}
+impl From<ParsedTransmitter> for Transmitter {
+    fn from(value: ParsedTransmitter) -> Self {
+        match value {
+            ParsedTransmitter::NodeName(s) => Transmitter::Node(NodeName(s)),
+            ParsedTransmitter::VectorXXX => Transmitter::VectorXXX,
+        }
+    }
+}
+

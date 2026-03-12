@@ -1,4 +1,4 @@
-use crate::ir::{Identifier, NodeName, map_into};
+use crate::ir::{Identifier, NodeName, map_into, ValueDescription};
 use can_dbc::ByteOrder as ParsedByteOrder;
 use can_dbc::MultiplexIndicator as ParsedMultiplexIndicator;
 use can_dbc::Signal as ParsedSignal;
@@ -112,10 +112,4 @@ impl From<String> for Receiver {
             _ => Receiver::Node(NodeName(value)),
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct ValueDescription {
-    pub value: i64,
-    pub description: String,
 }
