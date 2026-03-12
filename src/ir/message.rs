@@ -1,4 +1,3 @@
-use crate::ir::helpers::ToUpperCamelCase;
 use crate::ir::map_into;
 use crate::ir::{Identifier, Signal, NodeName};
 use can_dbc::Message as ParsedMessage;
@@ -18,7 +17,8 @@ impl From<ParsedMessage> for Message {
     fn from(value: ParsedMessage) -> Self {
         Message {
             id: MessageId::from(value.id),
-            name: Identifier(value.name.to_upper_camelcase()),
+            //TODO: sanitize this using .to_upper_camelcase()
+            name: Identifier(value.name.clone()),
             original_name: Identifier(value.name),
             size: value.size,
             transmitter: Transmitter::from(value.transmitter),
