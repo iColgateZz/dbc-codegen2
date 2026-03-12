@@ -1,5 +1,5 @@
 use can_dbc::Dbc as ParsedDbc;
-use dbc_codegen::{DbcFile, codegen};
+use dbc_codegen::{DbcFile, app, codegen};
 use std::{
     env,
     fs::{self, File},
@@ -40,8 +40,7 @@ fn main() {
         }
         "gen" => {
             let index = get_index(&args, 2).expect("Could not get index!");
-            let dbc = DbcFile::from_dbc(parse_dbc_file(FILEPATHS[index]));
-            let code = codegen::rust::RustGen::generate(&dbc.messages);
+            let code = App::convert(FILEPATHS[index]);
             let mut out = File::create("src/codegen/rust/test_data/test.rs").unwrap();
             write!(out, "{}", code).unwrap();
         }

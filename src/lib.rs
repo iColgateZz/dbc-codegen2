@@ -5,4 +5,5 @@ pub use ir::dbc::DbcFile;
 
 pub mod codegen;
 pub mod middle_end;
+pub mod app;
 // pub mod messages;
