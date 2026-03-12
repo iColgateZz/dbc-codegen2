@@ -6,6 +6,7 @@ pub struct SignalValueEnumAttacher;
 
 impl TransformationNode for SignalValueEnumAttacher {
     fn transform(&self, file: &mut crate::DbcFile) {
+        //TODO: use hashmap for better performance
         for msg in &mut file.messages {
             for signal in &mut msg.signals {
                 signal.signal_value_enum = file
