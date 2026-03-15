@@ -19,8 +19,8 @@ impl From<ParsedDbc> for DbcFile {
 
         file.nodes = map_into(value.nodes);
 
-        for e in value.value_descriptions {
-            match e {
+        for value_enum in value.value_descriptions {
+            match value_enum {
                 ParsedValueDescription::Signal { 
                     message_id, 
                     name, 
