@@ -1,13 +1,13 @@
-use crate::ir::{NodeName, SignalValueEnum, map_into};
+use crate::ir::identifier::Identifier;
+use crate::ir::{SignalValueEnum, map_into};
 use can_dbc::ByteOrder as ParsedByteOrder;
 use can_dbc::MultiplexIndicator as ParsedMultiplexIndicator;
 use can_dbc::Signal as ParsedSignal;
 use can_dbc::ValueType as ParsedValueType;
-use crate::utils::ToUpperCamelCase;
 
 #[derive(Debug, Clone)]
 pub struct Signal {
-    pub name: SignalName,
+    pub name: Identifier,
     pub multiplexer: MultiplexIndicator,
     pub start_bit: u64,
     pub size: u64,
@@ -24,7 +24,7 @@ pub struct Signal {
 impl From<ParsedSignal> for Signal {
     fn from(value: ParsedSignal) -> Self {
         Signal {
-            name: SignalName(value.name),
+            name: Identifier(value.name),
             multiplexer: MultiplexIndicator::from(value.multiplexer_indicator),
             start_bit: value.start_bit,
             size: value.size,
@@ -38,23 +38,6 @@ impl From<ParsedSignal> for Signal {
             receivers: map_into(value.receivers),
             signal_value_enum: None,
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SignalName(String);
-
-impl SignalName {
-    pub fn raw(&self) -> &str {
-        &self.0
-    }
-
-    pub fn lower(&self) -> String {
-        self.0.to_lowercase()
-    }
-
-    pub fn upper_camel(&self) -> String {
-        self.0.to_upper_camelcase()
     }
 }
 
@@ -110,14 +93,14 @@ impl From<ParsedValueType> for ValueType {
 
 #[derive(Debug, Clone)]
 pub enum Receiver {
-    Node(NodeName),
+    Node(Identifier),
     VectorXXX,
 }
 impl From<String> for Receiver {
     fn from(value: String) -> Self {
         match value.as_str() {
             "Vector__XXX" => Receiver::VectorXXX,
-            _ => Receiver::Node(NodeName(value)),
+            _ => Receiver::Node(Identifier(value)),
         }
     }
 }

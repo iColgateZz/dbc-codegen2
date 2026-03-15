@@ -1,5 +1,5 @@
 use crate::ir::map_into;
-use crate::ir::{Identifier, NodeName, Signal};
+use crate::ir::{Identifier, Signal};
 use can_dbc::Message as ParsedMessage;
 use can_dbc::MessageId as ParsedMessageId;
 use can_dbc::Transmitter as ParsedTransmitter;
@@ -40,13 +40,13 @@ impl From<ParsedMessageId> for MessageId {
 
 #[derive(Debug, Clone)]
 pub enum Transmitter {
-    Node(NodeName),
+    Node(Identifier),
     VectorXXX,
 }
 impl From<ParsedTransmitter> for Transmitter {
     fn from(value: ParsedTransmitter) -> Self {
         match value {
-            ParsedTransmitter::NodeName(s) => Transmitter::Node(NodeName(s)),
+            ParsedTransmitter::NodeName(s) => Transmitter::Node(Identifier(s)),
             ParsedTransmitter::VectorXXX => Transmitter::VectorXXX,
         }
     }

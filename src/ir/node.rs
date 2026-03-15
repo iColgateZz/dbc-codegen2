@@ -1,16 +1,15 @@
 use can_dbc::Node as ParsedNode;
 
-#[derive(Debug, Clone)]
-pub struct NodeName(pub String);
+use crate::ir::identifier::Identifier;
 
 #[derive(Debug, Clone)]
 pub struct Node {
-    pub name: NodeName,
+    pub name: Identifier,
 }
 impl From<ParsedNode> for Node {
     fn from(value: ParsedNode) -> Self {
         Node {
-            name: (NodeName(value.0)),
+            name: (Identifier(value.0)),
         }
     }
 }
