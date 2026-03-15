@@ -44,6 +44,7 @@ impl ToTokens for ErrorEnum {
             pub enum CanError {
                 Err1,
                 Err2,
+                InvalidPayloadSize,
             }
         }
         .to_tokens(tokens);
@@ -158,6 +159,9 @@ impl ToTokens for MessageDef<'_> {
             quote! {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
                     let data = frame.data();
+                    if data.len() < Self::LEN {
+                        return Err(CanError::InvalidPayloadSize);
+                    }
 
                     #( #reads )*
 
