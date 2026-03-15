@@ -1,4 +1,5 @@
 use crate::ir::{MessageId, map_into};
+use crate::utils::ReprType;
 use can_dbc::ValDescription as ParsedValDescription;
 use can_dbc::ValueDescription as ParsedValueDescription;
 
@@ -7,6 +8,7 @@ pub struct SignalValueEnum {
     pub message_id: MessageId,
     pub signal_name: String,
     pub variants: Vec<ValueDescription>,
+    pub repr_type: ReprType,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +30,7 @@ impl TryFrom<ParsedValueDescription> for SignalValueEnum {
                 message_id: message_id.into(),
                 signal_name: name,
                 variants: map_into(value_descriptions),
+                repr_type: ReprType::default(),
             }),
             _ => Err(()),
         }
