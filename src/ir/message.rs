@@ -1,6 +1,4 @@
-use crate::ir::map_into;
-use crate::ir::{Identifier, Signal};
-use can_dbc::Message as ParsedMessage;
+use crate::ir::{Identifier, SignalIdx};
 use can_dbc::MessageId as ParsedMessageId;
 use can_dbc::Transmitter as ParsedTransmitter;
 
@@ -10,16 +8,23 @@ pub struct Message {
     pub name: Identifier,
     pub size: u64,
     pub transmitter: Transmitter,
-    pub signals: Vec<Signal>,
+    pub signals: Vec<SignalIdx>,
 }
-impl From<ParsedMessage> for Message {
-    fn from(value: ParsedMessage) -> Self {
+
+impl Message {
+    pub fn from_parsed(
+        id: ParsedMessageId, 
+        name: String,
+        size: u64,
+        transmitter: ParsedTransmitter,
+        signals: Vec<SignalIdx>
+    ) -> Self {
         Message {
-            id: MessageId::from(value.id),
-            name: Identifier(value.name),
-            size: value.size,
-            transmitter: Transmitter::from(value.transmitter),
-            signals: map_into(value.signals),
+            id: id.into(),
+            name: Identifier(name),
+            size: size,
+            transmitter: Transmitter::from(transmitter),
+            signals,
         }
     }
 }

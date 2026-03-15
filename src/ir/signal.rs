@@ -1,9 +1,12 @@
 use crate::ir::identifier::Identifier;
-use crate::ir::{SignalValueEnum, map_into};
+use crate::ir::{SignalValueEnumIdx, map_into};
 use can_dbc::ByteOrder as ParsedByteOrder;
 use can_dbc::MultiplexIndicator as ParsedMultiplexIndicator;
 use can_dbc::Signal as ParsedSignal;
 use can_dbc::ValueType as ParsedValueType;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct SignalIdx(pub usize);
 
 #[derive(Debug, Clone)]
 pub struct Signal {
@@ -19,7 +22,7 @@ pub struct Signal {
     pub max: f64,
     pub unit: String,
     pub receivers: Vec<Receiver>,
-    pub signal_value_enum: Option<SignalValueEnum>,
+    pub signal_value_enum: Option<SignalValueEnumIdx>,
 }
 impl From<ParsedSignal> for Signal {
     fn from(value: ParsedSignal) -> Self {

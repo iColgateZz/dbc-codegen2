@@ -17,7 +17,7 @@ pub struct App;
 impl App {
     pub fn convert(input_path: &str) -> String {
         let data = fs::read_to_string(input_path).expect("Unable to read input file");
-        let mut dbc = DbcFile::from_dbc(ParsedDbc::try_from(data.as_str()).unwrap());
+        let mut dbc = DbcFile::from(ParsedDbc::try_from(data.as_str()).unwrap());
 
         //TODO: give user options to add new nodes/remove nodes
         TransformationPipeline::new()
