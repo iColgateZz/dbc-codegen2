@@ -9,6 +9,8 @@ pub struct DbcFile {
     pub messages: Vec<Message>,
     pub signals: Vec<Signal>,
     pub signal_value_enums: Vec<SignalValueEnum>,
+    //TODO: store signal_extended_value_type_list from can_dbc
+    //      for signal type inference
 }
 
 impl From<ParsedDbc> for DbcFile {
