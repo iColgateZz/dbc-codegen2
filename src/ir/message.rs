@@ -8,7 +8,7 @@ pub struct Message {
     pub name: Identifier,
     pub size: u64,
     pub transmitter: Transmitter,
-    pub signals: Vec<SignalIdx>,
+    pub signal_idxs: Vec<SignalIdx>,
 }
 
 impl Message {
@@ -24,7 +24,7 @@ impl Message {
             name: Identifier(name),
             size: size,
             transmitter: Transmitter::from(transmitter),
-            signals,
+            signal_idxs: signals,
         }
     }
 }

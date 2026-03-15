@@ -8,11 +8,13 @@ pub struct SanitizeSignalEnumVariantNames;
 
 impl TransformationNode for SanitizeSignalEnumVariantNames {
     fn transform(&self, file: &mut crate::DbcFile) {
-        for enum_def in &mut file.signal_value_enums {
-            for variant in &mut enum_def.variants {
+        for sve in &file.signal_value_enums {
+            for val_desc_idx in &sve.variants {
+                let variant = &mut file.value_descriptions[val_desc_idx.0];
+
                 variant.description = variant
                     .description
-                    .replace(&enum_def.signal_name, "")
+                    .replace(&sve.signal_name, "")
                     .to_upper_camelcase();
             }
         }
