@@ -18,7 +18,10 @@ pub struct DbcFile {
     //TODO: can_dbc::comments and attribute_* stuff may be
     //      used as metadata in generated code
 
-    
+    //TODO: consider how to use can_dbc::signal_types and 
+    //      signal_type_refs. original dbc-codegen does not
+    //      support them. They allow to define a signal once
+    //      and then reuse them later.
 }
 
 impl From<ParsedDbc> for DbcFile {
