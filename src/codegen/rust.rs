@@ -123,7 +123,12 @@ impl ToTokens for MessageDef<'_> {
 
         let fields = msg.signals.iter().map(|sig| {
             let field = format_ident!("{}", sig.name.lower());
-            quote! { pub #field: f64 }
+            let rust_type = sig
+                .signal_value_enum
+                .as_ref()
+                .map(|_| format_ident!("{}", sig.name.upper_camel()))
+                .unwrap_or(format_ident!("f64"));
+            quote! { pub #field: #rust_type }
         });
 
         let id = match msg.id {
@@ -143,17 +148,32 @@ impl ToTokens for MessageDef<'_> {
             let mut byte = 0usize;
             let reads = msg.signals.iter().map(|sig| {
                 let raw = format_ident!("raw_{}", sig.name.lower());
-                let b0 = byte;
-                let b1 = byte + 1;
-                byte += 2;
-                quote! { let #raw = u16::from_le_bytes([data[#b0], data[#b1]]); }
+                let byte_count = sig.size.div_ceil(8) as usize;
+                let indices: Vec<usize> = (byte..byte + byte_count).collect();
+                byte += byte_count;
+
+                match byte_count {
+                    1 => quote! { let #raw = data[#(#indices)*]; },
+                    2 => quote! { let #raw = u16::from_le_bytes([#(data[#indices]),*]); },
+                    4 => quote! { let #raw = u32::from_le_bytes([#(data[#indices]),*]); },
+                    _ => panic!("unsupported signal size: {} bits", sig.size),
+                }
             });
 
             let fields = msg.signals.iter().map(|sig| {
                 let field = format_ident!("{}", sig.name.lower());
                 let raw = format_ident!("raw_{}", sig.name.lower());
                 let factor = sig.factor;
-                quote! { #field: #raw as f64 * #factor }
+
+                let value = if let Some(sve) = sig.signal_value_enum.as_ref() {
+                    let enum_name = format_ident!("{}", sig.name.upper_camel());
+                    let rust_type = format_ident!("{}", sve.repr_type.as_rust_type());
+                    quote! { #enum_name::from(#raw as #rust_type) }
+                } else {
+                    quote! { #raw as f64 * #factor }
+                };
+
+                quote! { #field: #value }
             });
 
             quote! {

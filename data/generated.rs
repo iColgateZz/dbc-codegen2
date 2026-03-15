@@ -3,6 +3,7 @@ use embedded_can::{Frame, Id, StandardId, ExtendedId};
 pub enum CanError {
     Err1,
     Err2,
+    InvalidPayloadSize,
 }
 pub trait CanMessage<const LEN: usize>: Sized {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError>;
@@ -64,7 +65,7 @@ impl From<DriverHeartbeatCmd> for u8 {
 }
 #[derive(Debug, Clone)]
 pub struct DriverHeartbeat {
-    pub driver_heartbeat_cmd: f64,
+    pub driver_heartbeat_cmd: DriverHeartbeatCmd,
 }
 impl DriverHeartbeat {
     pub const ID: u32 = 100u32;
@@ -73,9 +74,14 @@ impl DriverHeartbeat {
 impl CanMessage<{ DriverHeartbeat::LEN }> for DriverHeartbeat {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         let data = frame.data();
-        let raw_driver_heartbeat_cmd = u16::from_le_bytes([data[0usize], data[1usize]]);
+        if data.len() < Self::LEN {
+            return Err(CanError::InvalidPayloadSize);
+        }
+        let raw_driver_heartbeat_cmd = data[0usize];
         Ok(Self {
-            driver_heartbeat_cmd: raw_driver_heartbeat_cmd as f64 * 1f64,
+            driver_heartbeat_cmd: DriverHeartbeatCmd::from(
+                raw_driver_heartbeat_cmd as u8,
+            ),
         })
     }
     fn encode(&self) -> (Id, [u8; DriverHeartbeat::LEN]) {
@@ -111,7 +117,7 @@ impl From<IoDebugTestEnum> for u8 {
 #[derive(Debug, Clone)]
 pub struct IoDebug {
     pub io_debug_test_unsigned: f64,
-    pub io_debug_test_enum: f64,
+    pub io_debug_test_enum: IoDebugTestEnum,
     pub io_debug_test_signed: f64,
     pub io_debug_test_float: f64,
 }
@@ -122,16 +128,16 @@ impl IoDebug {
 impl CanMessage<{ IoDebug::LEN }> for IoDebug {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         let data = frame.data();
-        let raw_io_debug_test_unsigned = u16::from_le_bytes([
-            data[0usize],
-            data[1usize],
-        ]);
-        let raw_io_debug_test_enum = u16::from_le_bytes([data[2usize], data[3usize]]);
-        let raw_io_debug_test_signed = u16::from_le_bytes([data[4usize], data[5usize]]);
-        let raw_io_debug_test_float = u16::from_le_bytes([data[6usize], data[7usize]]);
+        if data.len() < Self::LEN {
+            return Err(CanError::InvalidPayloadSize);
+        }
+        let raw_io_debug_test_unsigned = data[0usize];
+        let raw_io_debug_test_enum = data[1usize];
+        let raw_io_debug_test_signed = data[2usize];
+        let raw_io_debug_test_float = data[3usize];
         Ok(Self {
             io_debug_test_unsigned: raw_io_debug_test_unsigned as f64 * 1f64,
-            io_debug_test_enum: raw_io_debug_test_enum as f64 * 1f64,
+            io_debug_test_enum: IoDebugTestEnum::from(raw_io_debug_test_enum as u8),
             io_debug_test_signed: raw_io_debug_test_signed as f64 * 1f64,
             io_debug_test_float: raw_io_debug_test_float as f64 * 0.5f64,
         })
@@ -154,8 +160,11 @@ impl MotorCmd {
 impl CanMessage<{ MotorCmd::LEN }> for MotorCmd {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         let data = frame.data();
-        let raw_motor_cmd_steer = u16::from_le_bytes([data[0usize], data[1usize]]);
-        let raw_motor_cmd_drive = u16::from_le_bytes([data[2usize], data[3usize]]);
+        if data.len() < Self::LEN {
+            return Err(CanError::InvalidPayloadSize);
+        }
+        let raw_motor_cmd_steer = data[0usize];
+        let raw_motor_cmd_drive = data[1usize];
         Ok(Self {
             motor_cmd_steer: raw_motor_cmd_steer as f64 * 1f64,
             motor_cmd_drive: raw_motor_cmd_drive as f64 * 1f64,
@@ -179,13 +188,13 @@ impl MotorStatus {
 impl CanMessage<{ MotorStatus::LEN }> for MotorStatus {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         let data = frame.data();
-        let raw_motor_status_wheel_error = u16::from_le_bytes([
-            data[0usize],
-            data[1usize],
-        ]);
+        if data.len() < Self::LEN {
+            return Err(CanError::InvalidPayloadSize);
+        }
+        let raw_motor_status_wheel_error = data[0usize];
         let raw_motor_status_speed_kph = u16::from_le_bytes([
+            data[1usize],
             data[2usize],
-            data[3usize],
         ]);
         Ok(Self {
             motor_status_wheel_error: raw_motor_status_wheel_error as f64 * 1f64,
@@ -218,30 +227,33 @@ impl SensorSonars {
 impl CanMessage<{ SensorSonars::LEN }> for SensorSonars {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         let data = frame.data();
-        let raw_sensor_sonars_mux = u16::from_le_bytes([data[0usize], data[1usize]]);
+        if data.len() < Self::LEN {
+            return Err(CanError::InvalidPayloadSize);
+        }
+        let raw_sensor_sonars_mux = data[0usize];
         let raw_sensor_sonars_err_count = u16::from_le_bytes([
+            data[1usize],
             data[2usize],
-            data[3usize],
         ]);
-        let raw_sensor_sonars_left = u16::from_le_bytes([data[4usize], data[5usize]]);
-        let raw_sensor_sonars_middle = u16::from_le_bytes([data[6usize], data[7usize]]);
-        let raw_sensor_sonars_right = u16::from_le_bytes([data[8usize], data[9usize]]);
-        let raw_sensor_sonars_rear = u16::from_le_bytes([data[10usize], data[11usize]]);
+        let raw_sensor_sonars_left = u16::from_le_bytes([data[3usize], data[4usize]]);
+        let raw_sensor_sonars_middle = u16::from_le_bytes([data[5usize], data[6usize]]);
+        let raw_sensor_sonars_right = u16::from_le_bytes([data[7usize], data[8usize]]);
+        let raw_sensor_sonars_rear = u16::from_le_bytes([data[9usize], data[10usize]]);
         let raw_sensor_sonars_no_filt_left = u16::from_le_bytes([
+            data[11usize],
             data[12usize],
-            data[13usize],
         ]);
         let raw_sensor_sonars_no_filt_middle = u16::from_le_bytes([
+            data[13usize],
             data[14usize],
-            data[15usize],
         ]);
         let raw_sensor_sonars_no_filt_right = u16::from_le_bytes([
+            data[15usize],
             data[16usize],
-            data[17usize],
         ]);
         let raw_sensor_sonars_no_filt_rear = u16::from_le_bytes([
+            data[17usize],
             data[18usize],
-            data[19usize],
         ]);
         Ok(Self {
             sensor_sonars_mux: raw_sensor_sonars_mux as f64 * 1f64,
