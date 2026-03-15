@@ -22,6 +22,8 @@ pub struct DbcFile {
     //      signal_type_refs. original dbc-codegen does not
     //      support them. They allow to define a signal once
     //      and then reuse them later.
+
+    //TODO: can_dbc::extended_multiplex is probably also needed
 }
 
 impl From<ParsedDbc> for DbcFile {
