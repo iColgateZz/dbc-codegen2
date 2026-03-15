@@ -260,21 +260,18 @@ impl ToTokens for SignalValueEnum<'_> {
         let repr_type = enum_def.repr_type;
         let rust_type = format_ident!("{}", repr_type.as_rust_type());
 
-        let variants = enum_def.variants.iter().map(|vd_idx| {
-            let vd = &self.file.value_descriptions[vd_idx.0];
+        let variants = enum_def.variants.iter().map(|vd| {
             let name = format_ident!("{}", vd.description);
             quote! { #name }
         });
 
-        let from_arms = enum_def.variants.iter().map(|vd_idx| {
-            let vd = &self.file.value_descriptions[vd_idx.0];
+        let from_arms = enum_def.variants.iter().map(|vd| {
             let name = format_ident!("{}", vd.description);
             let value = repr_type.literal(vd.value);
             quote! { #value => Self::#name }
         });
 
-        let into_arms = enum_def.variants.iter().map(|vd_idx| {
-            let vd = &self.file.value_descriptions[vd_idx.0];
+        let into_arms = enum_def.variants.iter().map(|vd| {
             let name = format_ident!("{}", vd.description);
             let value = repr_type.literal(vd.value);
             quote! { #enum_name::#name => #value }

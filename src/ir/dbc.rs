@@ -1,5 +1,4 @@
-use crate::ir::value_description::ValueDescriptionIdx;
-use crate::ir::{Message, Node, Signal, SignalIdx, SignalValueEnum, ValueDescription, helpers::map_into};
+use crate::ir::{Message, Node, Signal, SignalIdx, SignalValueEnum, helpers::map_into};
 use can_dbc::Dbc as ParsedDbc;
 use can_dbc::Message as ParsedMessage;
 use can_dbc::ValueDescription as ParsedValueDescription;
@@ -10,7 +9,6 @@ pub struct DbcFile {
     pub messages: Vec<Message>,
     pub signals: Vec<Signal>,
     pub signal_value_enums: Vec<SignalValueEnum>,
-    pub value_descriptions: Vec<ValueDescription>,
 }
 
 impl From<ParsedDbc> for DbcFile {
@@ -26,14 +24,7 @@ impl From<ParsedDbc> for DbcFile {
                     name, 
                     value_descriptions 
                 } => {
-                    let mut description_ids = vec![];
-                    for desc in value_descriptions {
-                        let id = file.value_descriptions.len();
-                        file.value_descriptions.push(ValueDescription::from(desc));
-                        description_ids.push(ValueDescriptionIdx(id));
-                    }
-
-                    let sve = SignalValueEnum::from_parsed(message_id, name, description_ids);
+                    let sve = SignalValueEnum::from_parsed(message_id, name, value_descriptions);
                     file.signal_value_enums.push(sve);
                 },
                 _ => (),

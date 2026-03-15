@@ -1,8 +1,5 @@
 use can_dbc::ValDescription as ParsedValDescription;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ValueDescriptionIdx(pub usize);
-
 #[derive(Debug, Clone)]
 pub struct ValueDescription {
     pub value: i64,
