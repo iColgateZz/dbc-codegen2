@@ -1,4 +1,3 @@
-
 use crate::utils::infer_repr_type;
 
 use super::transformation::TransformationNode;
@@ -8,9 +7,11 @@ pub struct InferSignalValueEnumType;
 
 impl TransformationNode for InferSignalValueEnumType {
     fn transform(&self, file: &mut crate::DbcFile) {
-        for sve in &mut file.signal_value_enums {
-            let values = sve.variants.iter().map(|v| v.value);
-            sve.repr_type = infer_repr_type(values);
+        for sig in &mut file.signals {
+            if let Some(sve) = &mut sig.signal_value_enum {
+                let values = sve.variants.iter().map(|v| v.value);
+                sve.repr_type = infer_repr_type(values);
+            }
         }
     }
 }
