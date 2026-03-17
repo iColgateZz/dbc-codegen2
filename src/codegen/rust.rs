@@ -150,12 +150,11 @@ impl ToTokens for MessageDef<'_> {
         };
 
         let try_from = {
-            let mut byte = 0usize;
             let reads = signals.iter().map(|sig| {
                 let raw = format_ident!("raw_{}", sig.name.lower());
                 let byte_count = sig.size.div_ceil(8) as usize;
-                let indices: Vec<usize> = (byte..byte + byte_count).collect();
-                byte += byte_count;
+                let start_byte = sig.start_bit as usize / 8;
+                let indices: Vec<usize> = (start_byte..start_byte + byte_count).collect();
 
                 match byte_count {
                     1 => quote! { let #raw = data[#(#indices)*]; },
