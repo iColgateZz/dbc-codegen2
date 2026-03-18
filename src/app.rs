@@ -2,6 +2,7 @@ use can_dbc::Dbc as ParsedDbc;
 use std::fs;
 
 use crate::codegen;
+use crate::middle_end::nodes::InferSignalType;
 use crate::{
     ir::IRBuilder,
     middle_end::{
@@ -22,6 +23,7 @@ impl App {
         //TODO: give user options to add new nodes/remove nodes
         TransformationPipeline::new()
             .add(SanitizeSignalEnumVariantNames)
+            .add(InferSignalType)
             .run(&mut dbc);
 
         codegen::rust::RustGen::generate(&dbc)

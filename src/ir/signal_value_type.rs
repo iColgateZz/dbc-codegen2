@@ -7,6 +7,16 @@ pub enum RawType {
     Integer(IntReprType),
 }
 
+impl RawType {
+    pub fn as_rust_type(&self) -> &'static str {
+        match self {
+            RawType::Float32 => "f32",
+            RawType::Float64 => "f64",
+            RawType::Integer(v) => v.as_rust_type(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum EnumCoverage {
     Exhaustive,
@@ -22,6 +32,28 @@ pub enum PhysicalType {
         coverage: EnumCoverage, 
         repr: IntReprType
     },
+}
+
+impl PhysicalType {
+    pub fn as_rust_type(&self) -> &'static str {
+        match self {
+            PhysicalType::Float32 => "f32",
+            PhysicalType::Float64 => "f64",
+            PhysicalType::Integer(v) => v.as_rust_type(),
+            PhysicalType::Enum { coverage: _, repr } => repr.as_rust_type(),
+        }
+    }
+
+    pub fn literal(&self, value: i64) -> Literal {
+        match self {
+            PhysicalType::Float32 => Literal::f32_suffixed(value as f32),
+            PhysicalType::Float64 => Literal::f64_suffixed(value as f64),
+
+            PhysicalType::Integer(repr) => repr.literal(value),
+
+            PhysicalType::Enum { repr, .. } => repr.literal(value),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

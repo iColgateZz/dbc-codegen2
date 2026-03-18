@@ -174,9 +174,9 @@ impl ToTokens for MessageDef<'_> {
                 let sig_layout = self.file.signal_layouts[sig.layout.0];
                 let factor = sig_layout.factor;
 
-                let value = if let Some(sve) = &sig.signal_value_enum {
+                let value = if let Some(_sve) = &sig.signal_value_enum {
                     let enum_name = format_ident!("{}", sig.name.upper_camel());
-                    let rust_type = format_ident!("{}", sve.repr_type.as_rust_type());
+                    let rust_type = format_ident!("{}", sig.physical_type.as_rust_type());
                     quote! { #enum_name::from(#raw as #rust_type) }
                 } else {
                     quote! { #raw as f64 * #factor }
@@ -222,8 +222,8 @@ impl ToTokens for MessageDef<'_> {
                 let indices: Vec<usize> = (start_byte..start_byte + byte_count).collect();
                 let slot_indices: Vec<usize> = (0..byte_count).collect();
 
-                let raw_value = if let Some(sve) = &sig.signal_value_enum {
-                    let rust_type = format_ident!("{}", sve.repr_type.as_rust_type());
+                let raw_value = if let Some(_sve) = &sig.signal_value_enum {
+                    let rust_type = format_ident!("{}", sig.physical_type.as_rust_type());
                     quote! { #rust_type::from(self.#field) }
                 } else {
                     let factor = sig_layout.factor;
@@ -297,7 +297,7 @@ impl ToTokens for SignalValueEnum<'_> {
         };
 
         let enum_name = format_ident!("{}", signal.name.upper_camel());
-        let repr_type = enum_def.repr_type;
+        let repr_type = &signal.physical_type;
         let rust_type = format_ident!("{}", repr_type.as_rust_type());
 
         let variants = enum_def.variants.iter().map(|vd| {
