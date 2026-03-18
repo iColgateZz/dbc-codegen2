@@ -49,8 +49,9 @@ fn infer_raw_type(sig: &Signal, sig_layout: &SignalLayout) -> RawType {
         ExtendedValueType::Float32  => RawType::Float32,
         ExtendedValueType::Double64 => RawType::Float64,
         ExtendedValueType::Integer => {
-            let iter = ;
-            RawType::Integer(IntReprType::infer_repr_type(iter))
+            let size = sig_layout.size;
+            let signed = matches!(sig_layout.value_type, ValueType::Signed);
+            RawType::Integer(IntReprType::from_size_sign(size, signed))
         },
     }
 }
@@ -68,29 +69,27 @@ fn infer_physical_type(sig: &Signal, sig_layout: &SignalLayout) -> PhysicalType 
                 }
             }
         };
-        return PhysicalType::Enum(coverage);
+
+        let size = sig_layout.size;
+        let signed = matches!(sig_layout.value_type, ValueType::Signed);
+        let repr= IntReprType::from_size_sign(size, signed);
+        return PhysicalType::Enum {coverage, repr};
     }
 
     match &sig.raw_type {
         RawType::Float32 => PhysicalType::Float32,
         RawType::Float64 => PhysicalType::Float64,
-        RawType::SignedInt(bits) => {
+        RawType::Integer(int_repr) => {
             if is_float_scaled(sig_layout) {
                 PhysicalType::Float64
             } else {
-                PhysicalType::SignedInt(*bits)
-            }
-        }
-        RawType::UnsignedInt(bits) => {
-            if is_float_scaled(sig_layout) {
-                PhysicalType::Float64
-            } else {
-                PhysicalType::UnsignedInt(*bits)
+                PhysicalType::Integer(*int_repr)
             }
         }
     }
 }
 
+//TODO: maybe use epsilon comparison
 fn is_float_scaled(sig_layout: &SignalLayout) -> bool {
     sig_layout.factor.fract() != 0.0 || sig_layout.offset.fract() != 0.0
 }
