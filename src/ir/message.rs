@@ -1,4 +1,4 @@
-use crate::ir::{Identifier, SignalIdx};
+use crate::ir::{Identifier, SignalIdx, MessageLayoutIdx};
 use can_dbc::MessageId as ParsedMessageId;
 use can_dbc::Transmitter as ParsedTransmitter;
 
@@ -9,6 +9,7 @@ pub struct Message {
     pub size: u64,
     pub transmitter: Transmitter,
     pub signal_idxs: Vec<SignalIdx>,
+    pub layout: MessageLayoutIdx,
 }
 
 impl Message {
@@ -17,7 +18,8 @@ impl Message {
         name: String,
         size: u64,
         transmitter: ParsedTransmitter,
-        signals: Vec<SignalIdx>
+        signals: Vec<SignalIdx>,
+        layout: MessageLayoutIdx,
     ) -> Self {
         Message {
             id: id.into(),
@@ -25,6 +27,7 @@ impl Message {
             size: size,
             transmitter: Transmitter::from(transmitter),
             signal_idxs: signals,
+            layout: layout,
         }
     }
 }

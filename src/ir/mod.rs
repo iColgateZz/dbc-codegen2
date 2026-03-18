@@ -12,6 +12,7 @@ pub mod signal_extended_value_type;
 pub mod signal_value_type;
 pub mod signal_layout;
 pub mod ir_builder;
+pub mod message_layout;
 
 use helpers::*;
 use identifier::*;
@@ -23,3 +24,4 @@ use signal_value_enum::*;
 use signal_extended_value_type::*;
 use signal_layout::*;
 pub use ir_builder::*;
+use message_layout::*;

@@ -2,7 +2,7 @@ use can_dbc::Dbc as ParsedDbc;
 use can_dbc::Message as ParsedMessage;
 use can_dbc::Signal as ParsedSignal;
 use can_dbc::SignalExtendedValueTypeList as ParsedExtendedValueType;
-use crate::ir::{map_into, SignalValueEnum, ExtendedValueType, Signal, Message, SignalIdx, SignalLayout, SignalLayoutIdx};
+use crate::ir::{map_into, SignalValueEnum, ExtendedValueType, Signal, Message, SignalIdx, SignalLayout, SignalLayoutIdx, MessageLayout, MessageLayoutIdx};
 use can_dbc::ValueDescription as ParsedValueDescription;
 
 use std::collections::HashMap;
@@ -17,7 +17,9 @@ pub struct IRBuilder {
 
     value_enum_map: HashMap<SignalKey, SignalValueEnum>,
     extended_type_map: HashMap<SignalKey, ExtendedValueType>,
+
     signal_layout_map: HashMap<SignalLayout, SignalLayoutIdx>,
+    message_layout_map: HashMap<MessageLayout, MessageLayoutIdx>,
 }
 
 impl IRBuilder {
@@ -38,9 +40,12 @@ impl IRBuilder {
         Self {
             file,
             can_dbc_messages: value.messages,
+
             value_enum_map,
             extended_type_map,
+
             signal_layout_map: HashMap::new(),
+            message_layout_map: HashMap::new(),
         }
     }
 
@@ -50,27 +55,62 @@ impl IRBuilder {
                 continue;
             }
 
-            let message = self.build_message(msg);
-            self.file.messages.push(message);
+            self.build_message(msg);
         }
     }
 
-    fn build_message(&mut self, msg: ParsedMessage) -> Message {
+    fn build_message(&mut self, msg: ParsedMessage) {
         let ParsedMessage { id, name, size, transmitter, signals, .. } = msg;
 
-        let signal_idxs = signals
-            .into_iter()
-            .map(|sig| self.build_signal(id, sig))
-            .collect();
+        let mut signal_idxs = Vec::new();
+        let mut signal_layout_idxs = Vec::new();
 
-        Message::from_parsed(id, name, size, transmitter, signal_idxs)
+        for sig in signals {
+            let (sig_idx, layout_idx) = self.build_signal(id, sig);
+
+            signal_idxs.push(sig_idx);
+            signal_layout_idxs.push(layout_idx);
+        }
+
+        let layout_idx = self.build_message_layout(signal_layout_idxs);
+
+        let message = Message::from_parsed(
+            id,
+            name,
+            size,
+            transmitter,
+            signal_idxs,
+            layout_idx,
+        );
+
+        self.file.messages.push(message);
+    }
+
+    fn build_message_layout(
+        &mut self,
+        signal_layout_idxs: Vec<SignalLayoutIdx>,
+    ) -> MessageLayoutIdx {
+        let layout = MessageLayout {
+            signal_layouts: signal_layout_idxs,
+        };
+
+        if let Some(idx) = self.message_layout_map.get(&layout) {
+            return *idx;
+        }
+
+        let idx = MessageLayoutIdx(self.file.message_layouts.len());
+
+        self.file.message_layouts.push(layout.clone());
+        self.message_layout_map.insert(layout, idx);
+
+        idx
     }
 
     fn build_signal(
         &mut self,
         message_id: can_dbc::MessageId,
         parsed_sig: ParsedSignal,
-    ) -> SignalIdx {
+    ) -> (SignalIdx, SignalLayoutIdx) {
 
         let key = (message_id, parsed_sig.name.clone());
 
@@ -90,7 +130,7 @@ impl IRBuilder {
         let idx = SignalIdx(self.file.signals.len());
         self.file.signals.push(signal);
 
-        idx
+        (idx, layout_idx)
     }
 
     fn build_signal_layout(&mut self, sig: &ParsedSignal) -> SignalLayoutIdx {
