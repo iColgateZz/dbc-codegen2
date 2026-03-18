@@ -22,4 +22,4 @@ use value_description::*;
 use signal_value_enum::*;
 use signal_extended_value_type::*;
 use signal_layout::*;
-use ir_builder::*;
+pub use ir_builder::*;

@@ -3,7 +3,7 @@ use std::fs;
 
 use crate::codegen;
 use crate::{
-    ir::ir_builder::IRBuilder,
+    ir::IRBuilder,
     middle_end::{
         nodes::{FilterRelevantMessages, InferSignalValueEnumType, SanitizeSignalEnumVariantNames},
         pipeline::transform_pipeline::TransformationPipeline,
