@@ -37,14 +37,14 @@ pub struct InferSignalType;
 impl TransformationNode for InferSignalType {
     fn transform(&self, file: &mut crate::DbcFile) {
         for sig in &mut file.signals {
-            let sig_layout = file.signal_layouts[sig.layout.0];
+            let sig_layout = &file.signal_layouts[sig.layout.0];
             sig.raw_type = infer_raw_type(sig, sig_layout);
             sig.physical_type = infer_physical_type(sig, sig_layout);
         }
     }
 }
 
-fn infer_raw_type(sig: &Signal, sig_layout: SignalLayout) -> RawType {
+fn infer_raw_type(sig: &Signal, sig_layout: &SignalLayout) -> RawType {
     match sig.extended_type {
         ExtendedValueType::Float32  => RawType::Float32,
         ExtendedValueType::Double64 => RawType::Float64,
@@ -55,7 +55,7 @@ fn infer_raw_type(sig: &Signal, sig_layout: SignalLayout) -> RawType {
     }
 }
 
-fn infer_physical_type(sig: &Signal, sig_layout: SignalLayout) -> PhysicalType {
+fn infer_physical_type(sig: &Signal, sig_layout: &SignalLayout) -> PhysicalType {
     if let Some(variant_count) = sig.signal_value_enum.as_ref().map(|s| s.variants.len()) {
         let possible_values: Option<u64> = 1u64.checked_shl(sig_layout.size as u32);
         let coverage = match possible_values {
@@ -91,6 +91,6 @@ fn infer_physical_type(sig: &Signal, sig_layout: SignalLayout) -> PhysicalType {
     }
 }
 
-fn is_float_scaled(sig_layout: SignalLayout) -> bool {
+fn is_float_scaled(sig_layout: &SignalLayout) -> bool {
     sig_layout.factor.fract() != 0.0 || sig_layout.offset.fract() != 0.0
 }
