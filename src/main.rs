@@ -1,5 +1,5 @@
 use can_dbc::Dbc as ParsedDbc;
-use dbc_codegen::{DbcFile, app::App};
+use dbc_codegen::{DbcFile, app::App, ir::IRBuilder};
 use clap::{Parser, Subcommand};
 use std::{
     fs::{self, File},
@@ -57,7 +57,7 @@ fn main() {
 
         Command::Ir { input, output } => {
             let dbc = parse_dbc_file(&input);
-            let ir = DbcFile::from(dbc);
+            let ir = IRBuilder::to_ir(dbc);
             if let Err(e) = write_ir(ir, &output) {
                 eprintln!("Error writing IR: {e}");
             }

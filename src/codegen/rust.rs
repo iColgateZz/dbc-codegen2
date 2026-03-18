@@ -155,22 +155,24 @@ impl ToTokens for MessageDef<'_> {
             //       mux groups - they share same bit positions)
             let reads = signals.iter().map(|sig| {
                 let raw = format_ident!("raw_{}", sig.name.lower());
-                let byte_count = sig.size.div_ceil(8) as usize;
-                let start_byte = sig.start_bit as usize / 8;
+                let sig_layout = self.file.signal_layouts[sig.layout.0];
+                let byte_count = sig_layout.size.div_ceil(8) as usize;
+                let start_byte = sig_layout.start_bit as usize / 8;
                 let indices: Vec<usize> = (start_byte..start_byte + byte_count).collect();
 
                 match byte_count {
                     1 => quote! { let #raw = data[#(#indices)*]; },
                     2 => quote! { let #raw = u16::from_le_bytes([#(data[#indices]),*]); },
                     4 => quote! { let #raw = u32::from_le_bytes([#(data[#indices]),*]); },
-                    _ => panic!("unsupported signal size: {} bits", sig.size),
+                    _ => panic!("unsupported signal size: {} bits", sig_layout.size),
                 }
             });
 
             let fields = signals.iter().map(|sig| {
                 let field = format_ident!("{}", sig.name.lower());
                 let raw = format_ident!("raw_{}", sig.name.lower());
-                let factor = sig.factor;
+                let sig_layout = self.file.signal_layouts[sig.layout.0];
+                let factor = sig_layout.factor;
 
                 let value = if let Some(sve) = &sig.signal_value_enum {
                     let enum_name = format_ident!("{}", sig.name.upper_camel());
@@ -213,9 +215,10 @@ impl ToTokens for MessageDef<'_> {
             //       data overwriting happens (signals are in different
             //       mux groups - they share same bit positions)
             let writes = signals.iter().map(|sig| {
+                let sig_layout = self.file.signal_layouts[sig.layout.0];
                 let field = format_ident!("{}", sig.name.lower());
-                let byte_count = sig.size.div_ceil(8) as usize;
-                let start_byte = sig.start_bit as usize / 8;
+                let byte_count = sig_layout.size.div_ceil(8) as usize;
+                let start_byte = sig_layout.start_bit as usize / 8;
                 let indices: Vec<usize> = (start_byte..start_byte + byte_count).collect();
                 let slot_indices: Vec<usize> = (0..byte_count).collect();
 
@@ -223,12 +226,12 @@ impl ToTokens for MessageDef<'_> {
                     let rust_type = format_ident!("{}", sve.repr_type.as_rust_type());
                     quote! { #rust_type::from(self.#field) }
                 } else {
-                    let factor = sig.factor;
+                    let factor = sig_layout.factor;
                     match byte_count {
                         1 => quote! { (self.#field / #factor) as u8 },
                         2 => quote! { (self.#field / #factor) as u16 },
                         4 => quote! { (self.#field / #factor) as u32 },
-                        _ => panic!("unsupported signal size: {} bits", sig.size),
+                        _ => panic!("unsupported signal size: {} bits", sig_layout.size),
                     }
                 };
 
@@ -245,7 +248,7 @@ impl ToTokens for MessageDef<'_> {
                         let bytes = (#raw_value).to_le_bytes();
                         #( data[#indices] = bytes[#slot_indices]; )*
                     },
-                    _ => panic!("unsupported signal size: {} bits", sig.size),
+                    _ => panic!("unsupported signal size: {} bits", sig_layout.size),
                 }
             });
 
