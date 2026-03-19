@@ -459,6 +459,8 @@ impl<'a> SignalCtx<'a> {
             let raw_ty = self.raw_rust_type();
             quote! { let #raw = data.view_bits::<#order>()[#start..#end].load_le::<#raw_ty>(); }
         } else {
+            // bitvec cannot read f32/f64 from bits. Code finds the best fitting unsigned type
+            // and reads data into the type. The data is later casted to the correct float type.
             let int_ty = self.int_repr_for_float();
             quote! { let #raw = data.view_bits::<#order>()[#start..#end].load_le::<#int_ty>(); }
         }
@@ -477,8 +479,8 @@ impl<'a> SignalCtx<'a> {
         } else if self.is_float() {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
+            // bitvec does not work with floats. See comment in decode_read!
             let ty = format_ident!("{}", self.signal.physical_type.as_rust_type());
-
             quote! { #field: (#raw as #ty) * (#factor) + (#offset) }
         } else {
             let factor = self.factor_literal();
@@ -501,8 +503,8 @@ impl<'a> SignalCtx<'a> {
         } else if self.is_float() {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
+            // bitvec does not work with floats. See comment in decode_read!
             let int_ty = self.int_repr_for_float();
-
             quote! {
                 data.view_bits_mut::<#order>()[#start..#end].store_le(((self.#field - (#offset)) / (#factor)) as #int_ty);
             }
