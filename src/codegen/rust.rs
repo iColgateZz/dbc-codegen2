@@ -480,6 +480,8 @@ impl<'a> SignalCtx<'a> {
         }
     }
 
+    //TODO: add a checker node that ensures that */+- operations
+    //      are safe. dbc-codegen uses saturating_*, checked_*
     //TODO: do not perform multiplication when factor is 1
     //      do not perform addition when offset is 0
     fn decode_field(&self) -> TokenStream {
