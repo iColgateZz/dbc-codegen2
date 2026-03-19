@@ -6,6 +6,7 @@ use crate::DbcFile;
 use crate::ir::message::{Message, MessageId};
 use crate::ir::signal::Signal;
 use crate::ir::signal_value_type::PhysicalType;
+use crate::ir::signal_value_type::{RustLiteral, RustType};
 
 pub struct RustGen;
 
