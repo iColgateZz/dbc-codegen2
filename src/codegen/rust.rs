@@ -5,7 +5,7 @@ use syn::File;
 use crate::DbcFile;
 use crate::ir::message::{Message, MessageId};
 use crate::ir::signal::Signal;
-use crate::ir::signal_value_type::PhysicalType;
+use crate::ir::signal_layout::SignalLayout;
 use crate::ir::signal_value_type::{RustLiteral, RustType};
 
 pub struct RustGen;
@@ -125,123 +125,67 @@ impl ToTokens for MessageDef<'_> {
         let msg = self.msg;
         let name = format_ident!("{}", msg.name.upper_camel());
 
-        let signals: Vec<&Signal> = msg.signal_idxs.iter().map(|idx| &self.file.signals[idx.0]).collect();
+        let signals: Vec<SignalCtx> = msg
+            .signal_idxs
+            .iter()
+            .map(|idx| SignalCtx::new(&self.file.signals[idx.0], self.file))
+            .collect();
 
-        let value_enums = signals.iter().map(|s| SignalValueEnum { signal: s });
+        let value_enums = signals
+            .iter()
+            .map(|s| SignalValueEnum { signal: s.signal });
 
-        let fields = signals.iter().map(|sig| {
-            let field = format_ident!("{}", sig.name.lower());
-            let rust_type = sig
-                .signal_value_enum
-                .as_ref()
-                .map(|_| format_ident!("{}", sig.name.upper_camel()))
-                .unwrap_or(format_ident!("{}", sig.physical_type.as_rust_type()));
-            quote! { pub #field: #rust_type }
+        let fields = signals.iter().map(|s| {
+            let field = s.field_ident();
+            let ty = s.rust_type();
+
+            quote! { pub #field: #ty }
         });
 
         let id = match msg.id {
             MessageId::Standard(id) => id as u32,
             MessageId::Extended(id) => id,
         };
+
         let len = msg.size as usize;
 
-        let constructor_params = signals.iter().map(|sig| {
-            let field = format_ident!("{}", sig.name.lower());
-            let rust_type = sig
-                .signal_value_enum
-                .as_ref()
-                .map(|_| format_ident!("{}", sig.name.upper_camel()))
-                .unwrap_or(format_ident!("{}", sig.physical_type.as_rust_type()));
+        let constructor_params = signals.iter().map(|s| {
+            let field = s.field_ident();
+            let ty = s.rust_type();
 
-            quote! { #field: #rust_type }
+            quote! { #field: #ty }
         });
 
-        let constructor_fields: Vec<_> = signals
-            .iter()
-            .map(|sig| format_ident!("{}", sig.name.lower()))
-            .collect();
+        let constructor_fields = signals.iter().map(|s| s.field_ident());
 
-        let constructor_validations = constructor_fields.iter().map(|field| {
-            let setter = format_ident!("set_{}", field);
+        let constructor_validations = signals.iter().map(|s| {
+            let field = s.field_ident();
+            let setter = s.setter_ident();
+
             quote! {
                 msg.#setter(msg.#field)?;
             }
         });
 
-        let getters = signals.iter().map(|sig| {
-            let field = format_ident!("{}", sig.name.lower());
-            let rust_type = sig
-                .signal_value_enum
-                .as_ref()
-                .map(|_| format_ident!("{}", sig.name.upper_camel()))
-                .unwrap_or(format_ident!("{}", sig.physical_type.as_rust_type()));
+        let getters = signals.iter().map(|s| {
+            let field = s.field_ident();
+            let ty = s.rust_type();
 
             quote! {
-                pub fn #field(&self) -> #rust_type {
+                pub fn #field(&self) -> #ty {
                     self.#field
                 }
             }
         });
 
-        let setters = signals.iter().map(|sig| {
-            let field = format_ident!("{}", sig.name.lower());
-            let set_name = format_ident!("set_{}", sig.name.lower());
-
-            let rust_type = sig
-                .signal_value_enum
-                .as_ref()
-                .map(|_| format_ident!("{}", sig.name.upper_camel()))
-                .unwrap_or(format_ident!("{}", sig.physical_type.as_rust_type()));
-
-            let sig_layout = self.file.signal_layouts[sig.layout.0];
-            let check = if sig.signal_value_enum.is_some() {
-                quote! {}
-            } else {
-                let phys = &sig.physical_type;
-
-                let min_literal = match phys {
-                    PhysicalType::Float32 => {
-                        let v = sig_layout.min as f32;
-                        quote! { #v }
-                    }
-                    PhysicalType::Float64 => {
-                        let v = sig_layout.min as f64;
-                        quote! { #v }
-                    }
-                    PhysicalType::Integer(_) => {
-                        phys.literal(sig_layout.min as i64).to_token_stream()
-                    }
-                    PhysicalType::Enum { .. } => {
-                        quote! {}
-                    }
-                };
-
-                let max_literal = match phys {
-                    PhysicalType::Float32 => {
-                        let v = sig_layout.max as f32;
-                        quote! { #v }
-                    }
-                    PhysicalType::Float64 => {
-                        let v = sig_layout.max as f64;
-                        quote! { #v }
-                    }
-                    PhysicalType::Integer(_) => {
-                        phys.literal(sig_layout.max as i64).to_token_stream()
-                    }
-                    PhysicalType::Enum { .. } => {
-                        quote! {}
-                    }
-                };
-
-                quote! {
-                    if value < #min_literal || value > #max_literal {
-                        return Err(CanError::ValueOutOfRange);
-                    }
-                }
-            };
+        let setters = signals.iter().map(|s| {
+            let field = s.field_ident();
+            let setter = s.setter_ident();
+            let ty = s.rust_type();
+            let check = s.range_check();
 
             quote! {
-                pub fn #set_name(&mut self, value: #rust_type) -> Result<(), CanError> {
+                pub fn #setter(&mut self, value: #ty) -> Result<(), CanError> {
                     #check
                     self.#field = value;
                     Ok(())
@@ -273,40 +217,8 @@ impl ToTokens for MessageDef<'_> {
         };
 
         let try_from = {
-            // TODO: take into account the multiplexing, otherwise
-            //       conflicting reads happen (signals are in different
-            //       mux groups - they share same bit positions)
-            let reads = signals.iter().map(|sig| {
-                let raw = format_ident!("raw_{}", sig.name.lower());
-                let sig_layout = self.file.signal_layouts[sig.layout.0];
-                let byte_count = sig_layout.size.div_ceil(8) as usize;
-                let start_byte = sig_layout.start_bit as usize / 8;
-                let indices: Vec<usize> = (start_byte..start_byte + byte_count).collect();
-
-                match byte_count {
-                    1 => quote! { let #raw = data[#(#indices)*]; },
-                    2 => quote! { let #raw = u16::from_le_bytes([#(data[#indices]),*]); },
-                    4 => quote! { let #raw = u32::from_le_bytes([#(data[#indices]),*]); },
-                    _ => panic!("unsupported signal size: {} bits", sig_layout.size),
-                }
-            });
-
-            let fields = signals.iter().map(|sig| {
-                let field = format_ident!("{}", sig.name.lower());
-                let raw = format_ident!("raw_{}", sig.name.lower());
-                let sig_layout = self.file.signal_layouts[sig.layout.0];
-                let factor = sig_layout.factor;
-
-                let value = if let Some(_sve) = &sig.signal_value_enum {
-                    let enum_name = format_ident!("{}", sig.name.upper_camel());
-                    let rust_type = format_ident!("{}", sig.physical_type.as_rust_type());
-                    quote! { #enum_name::from(#raw as #rust_type) }
-                } else {
-                    quote! { #raw as f64 * #factor }
-                };
-
-                quote! { #field: #value }
-            });
+            let reads = signals.iter().map(|s| s.decode_read());
+            let fields = signals.iter().map(|s| s.decode_field());
 
             quote! {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
@@ -334,46 +246,7 @@ impl ToTokens for MessageDef<'_> {
                 }
             };
 
-            // TODO: take into account the multiplexing, otherwise
-            //       data overwriting happens (signals are in different
-            //       mux groups - they share same bit positions)
-            let writes = signals.iter().map(|sig| {
-                let sig_layout = self.file.signal_layouts[sig.layout.0];
-                let field = format_ident!("{}", sig.name.lower());
-                let byte_count = sig_layout.size.div_ceil(8) as usize;
-                let start_byte = sig_layout.start_bit as usize / 8;
-                let indices: Vec<usize> = (start_byte..start_byte + byte_count).collect();
-                let slot_indices: Vec<usize> = (0..byte_count).collect();
-
-                let raw_value = if let Some(_sve) = &sig.signal_value_enum {
-                    let rust_type = format_ident!("{}", sig.physical_type.as_rust_type());
-                    quote! { #rust_type::from(self.#field) }
-                } else {
-                    let factor = sig_layout.factor;
-                    match byte_count {
-                        1 => quote! { (self.#field / #factor) as u8 },
-                        2 => quote! { (self.#field / #factor) as u16 },
-                        4 => quote! { (self.#field / #factor) as u32 },
-                        _ => panic!("unsupported signal size: {} bits", sig_layout.size),
-                    }
-                };
-
-                match byte_count {
-                    1 => {
-                        let idx = indices[0];
-                        quote! { data[#idx] = #raw_value; }
-                    }
-                    2 => quote! {
-                        let bytes = (#raw_value).to_le_bytes();
-                        #( data[#indices] = bytes[#slot_indices]; )*
-                    },
-                    4 => quote! {
-                        let bytes = (#raw_value).to_le_bytes();
-                        #( data[#indices] = bytes[#slot_indices]; )*
-                    },
-                    _ => panic!("unsupported signal size: {} bits", sig_layout.size),
-                }
-            });
+            let writes = signals.iter().map(|s| s.encode_write());
 
             quote! {
                 fn encode(&self) -> (Id, [u8; #name::LEN]) {
@@ -399,14 +272,12 @@ impl ToTokens for MessageDef<'_> {
 
             impl CanMessage<{ #name::LEN }> for #name {
                 #try_from
-
                 #encode
             }
         }
         .to_tokens(tokens);
     }
 }
-
 struct SignalValueEnum<'a> {
     signal: &'a Signal,
 }
@@ -466,5 +337,145 @@ impl ToTokens for SignalValueEnum<'_> {
             }
         }
         .to_tokens(tokens);
+    }
+}
+
+struct SignalCtx<'a> {
+    signal: &'a Signal,
+    layout: &'a SignalLayout,
+}
+
+impl<'a> SignalCtx<'a> {
+    fn new(signal: &'a Signal, file: &'a DbcFile) -> Self {
+        Self {
+            signal,
+            layout: &file.signal_layouts[signal.layout.0],
+        }
+    }
+
+    fn field_ident(&self) -> syn::Ident {
+        format_ident!("{}", self.signal.name.lower())
+    }
+
+    fn setter_ident(&self) -> syn::Ident {
+        format_ident!("set_{}", self.signal.name.lower())
+    }
+
+    fn raw_ident(&self) -> syn::Ident {
+        format_ident!("raw_{}", self.signal.name.lower())
+    }
+
+    fn enum_ident(&self) -> syn::Ident {
+        format_ident!("{}", self.signal.name.upper_camel())
+    }
+
+    fn rust_type(&self) -> syn::Ident {
+        if self.signal.signal_value_enum.is_some() {
+            self.enum_ident()
+        } else {
+            format_ident!("{}", self.signal.physical_type.as_rust_type())
+        }
+    }
+
+    fn raw_rust_type(&self) -> syn::Ident {
+        format_ident!("{}", self.signal.physical_type.as_rust_type())
+    }
+
+    fn is_enum(&self) -> bool {
+        self.signal.signal_value_enum.is_some()
+    }
+
+    fn range_check(&self) -> TokenStream {
+        if self.is_enum() {
+            return quote! {};
+        }
+
+        let phys = &self.signal.physical_type;
+        let min = self.layout.min;
+        let max = self.layout.max;
+
+        let min_literal = phys.literal(min as i64).to_token_stream();
+        let max_literal = phys.literal(max as i64).to_token_stream();
+
+        quote! {
+            if value < #min_literal || value > #max_literal {
+                return Err(CanError::ValueOutOfRange);
+            }
+        }
+    }
+
+    fn byte_count(&self) -> usize {
+        self.layout.size.div_ceil(8) as usize
+    }
+
+    fn start_byte(&self) -> usize {
+        self.layout.start_bit as usize / 8
+    }
+
+    fn byte_indices(&self) -> Vec<usize> {
+        let start = self.start_byte();
+        (start..start + self.byte_count()).collect()
+    }
+
+    fn decode_read(&self) -> TokenStream {
+        let raw = self.raw_ident();
+        let indices = self.byte_indices();
+        let count = self.byte_count();
+
+        match count {
+            1 => quote! { let #raw = data[#(#indices)*]; },
+            2 => quote! { let #raw = u16::from_le_bytes([#(data[#indices]),*]); },
+            4 => quote! { let #raw = u32::from_le_bytes([#(data[#indices]),*]); },
+            _ => panic!("unsupported signal size"),
+        }
+    }
+
+    fn decode_field(&self) -> TokenStream {
+        let field = self.field_ident();
+        let raw = self.raw_ident();
+
+        if self.is_enum() {
+            let enum_name = self.enum_ident();
+            let raw_ty = self.raw_rust_type();
+
+            quote! { #field: #enum_name::from(#raw as #raw_ty) }
+        } else {
+            let factor = self.layout.factor;
+            quote! { #field: #raw as f64 * #factor }
+        }
+    }
+
+    fn encode_write(&self) -> TokenStream {
+        let field = self.field_ident();
+        let indices = self.byte_indices();
+        let byte_count = self.byte_count();
+
+        let raw_value = if self.is_enum() {
+            let ty = self.raw_rust_type();
+            quote! { #ty::from(self.#field) }
+        } else {
+            let factor = self.layout.factor;
+
+            match byte_count {
+                1 => quote! { (self.#field / #factor) as u8 },
+                2 => quote! { (self.#field / #factor) as u16 },
+                4 => quote! { (self.#field / #factor) as u32 },
+                _ => panic!("unsupported signal size"),
+            }
+        };
+
+        match byte_count {
+            1 => {
+                let idx = indices[0];
+                quote! { data[#idx] = #raw_value; }
+            }
+            _ => {
+                let slots: Vec<_> = (0..byte_count).collect();
+                quote! {
+                    let bytes = (#raw_value).to_le_bytes();
+                    #( data[#indices] = bytes[#slots]; )*
+                }
+            }
+        }
     }
 }
