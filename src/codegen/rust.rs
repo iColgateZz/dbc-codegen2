@@ -434,6 +434,8 @@ impl<'a> SignalCtx<'a> {
         }
     }
 
+    //TODO: do not perform multiplication when factor is 1
+    //      do not perform addition when offset is 0
     fn decode_field(&self) -> TokenStream {
         let field = self.field_ident();
         let raw = self.raw_ident();
@@ -469,6 +471,8 @@ impl<'a> SignalCtx<'a> {
         }
     }
 
+    //TODO: do not perform division when factor is 1
+    //      do not perform subtraction when offset is 0
     fn encode_write(&self) -> TokenStream {
         let field = self.field_ident();
         let start = self.start_bit();
