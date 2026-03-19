@@ -399,6 +399,7 @@ impl<'a> SignalCtx<'a> {
             max_literal = phys.literal(max as i64).to_token_stream();
         }
 
+        //TODO: no need to check if unsigned value is less than 0
         quote! {
             if value < #min_literal || value > #max_literal {
                 return Err(CanError::ValueOutOfRange);
