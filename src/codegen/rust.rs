@@ -395,12 +395,13 @@ impl MessageDef<'_> {
 
         let mux_encode_arms = muxed.keys().map(|v| {
             let variant = format_ident!("V{}", v);
+            let mux_store = mux_signal.store_fn();
 
             quote! {
                 #mux_enum_name::#variant(inner) => {
 
                     data.view_bits_mut::<#mux_order>()[#mux_start..#mux_end]
-                        .store_le(#v as #mux_raw_ty);
+                        .#mux_store(#v as #mux_raw_ty);
 
                     inner.encode_into(&mut data);
                 }
@@ -693,19 +694,34 @@ impl<'a> SignalCtx<'a> {
         }
     }
 
+    fn load_fn(&self) -> syn::Ident {
+        match self.layout.byte_order {
+            ByteOrder::LittleEndian => format_ident!("load_le"),
+            ByteOrder::BigEndian => format_ident!("load_be"),
+        }
+    }
+
+    fn store_fn(&self) -> syn::Ident {
+        match self.layout.byte_order {
+            ByteOrder::LittleEndian => format_ident!("store_le"),
+            ByteOrder::BigEndian => format_ident!("store_be"),
+        }
+    }
+
     fn decode_read(&self) -> TokenStream {
         let raw = self.raw_ident();
         let (start, end) = self.start_end_bit();
         let order = self.bitvec_order();
+        let load = self.load_fn();
 
         if self.is_enum() || !self.is_float() {
             let raw_ty = self.raw_rust_type();
-            quote! { let #raw = data.view_bits::<#order>()[#start..#end].load_le::<#raw_ty>(); }
+            quote! { let #raw = data.view_bits::<#order>()[#start..#end].#load::<#raw_ty>(); }
         } else {
             // bitvec cannot read f32/f64 from bits. Code finds the best fitting unsigned type
             // and reads data into the type. The data is later casted to the correct float type.
             let int_ty = self.int_repr_for_float();
-            quote! { let #raw = data.view_bits::<#order>()[#start..#end].load_le::<#int_ty>(); }
+            quote! { let #raw = data.view_bits::<#order>()[#start..#end].#load::<#int_ty>(); }
         }
     }
 
@@ -740,23 +756,24 @@ impl<'a> SignalCtx<'a> {
         let field = self.field_ident();
         let (start, end) = self.start_end_bit();
         let order = self.bitvec_order();
+        let store = self.store_fn();
 
         if self.is_enum() {
             let ty = self.raw_rust_type();
-            quote! { data.view_bits_mut::<#order>()[#start..#end].store_le(#ty::from(self.#field)); }
+            quote! { data.view_bits_mut::<#order>()[#start..#end].#store(#ty::from(self.#field)); }
         } else if self.is_float() {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             // bitvec does not work with floats. See comment in decode_read!
             let int_ty = self.int_repr_for_float();
             quote! {
-                data.view_bits_mut::<#order>()[#start..#end].store_le(((self.#field - (#offset)) / (#factor)) as #int_ty);
+                data.view_bits_mut::<#order>()[#start..#end].#store(((self.#field - (#offset)) / (#factor)) as #int_ty);
             }
         } else {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             quote! {
-                data.view_bits_mut::<#order>()[#start..#end].store_le((self.#field - (#offset)) / (#factor));
+                data.view_bits_mut::<#order>()[#start..#end].#store((self.#field - (#offset)) / (#factor));
             }
         }
     }
