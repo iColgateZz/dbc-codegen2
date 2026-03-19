@@ -296,7 +296,7 @@ impl ToTokens for SignalValueEnum<'_> {
         let from_arms = enum_def.variants.iter().map(|vd| {
             let name = format_ident!("{}", vd.description);
             let value = repr_type.literal(vd.value);
-            quote! { #value => Self::#name }
+            quote! { #value => #enum_name::#name }
         });
 
         let into_arms = enum_def.variants.iter().map(|vd| {
@@ -316,7 +316,7 @@ impl ToTokens for SignalValueEnum<'_> {
                 fn from(val: #rust_type) -> Self {
                     match val {
                         #( #from_arms, )*
-                        _ => Self::_Other(val),
+                        _ => #enum_name::_Other(val),
                     }
                 }
             }

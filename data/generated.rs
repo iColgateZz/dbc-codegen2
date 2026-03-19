@@ -44,10 +44,10 @@ pub enum DriverHeartbeatCmd {
 impl From<u8> for DriverHeartbeatCmd {
     fn from(val: u8) -> Self {
         match val {
-            2u8 => Self::Reboot,
-            1u8 => Self::Sync,
-            0u8 => Self::Noop,
-            _ => Self::_Other(val),
+            2u8 => DriverHeartbeatCmd::Reboot,
+            1u8 => DriverHeartbeatCmd::Sync,
+            0u8 => DriverHeartbeatCmd::Noop,
+            _ => DriverHeartbeatCmd::_Other(val),
         }
     }
 }
@@ -108,24 +108,24 @@ impl CanMessage<{ DriverHeartbeat::LEN }> for DriverHeartbeat {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IoDebugTestEnum {
-    IoDebugTest2EnumTwo,
-    IoDebugTest2EnumOne,
+    Two,
+    One,
     _Other(u8),
 }
 impl From<u8> for IoDebugTestEnum {
     fn from(val: u8) -> Self {
         match val {
-            2u8 => Self::IoDebugTest2EnumTwo,
-            1u8 => Self::IoDebugTest2EnumOne,
-            _ => Self::_Other(val),
+            2u8 => IoDebugTestEnum::Two,
+            1u8 => IoDebugTestEnum::One,
+            _ => IoDebugTestEnum::_Other(val),
         }
     }
 }
 impl From<IoDebugTestEnum> for u8 {
     fn from(val: IoDebugTestEnum) -> Self {
         match val {
-            IoDebugTestEnum::IoDebugTest2EnumTwo => 2u8,
-            IoDebugTestEnum::IoDebugTest2EnumOne => 1u8,
+            IoDebugTestEnum::Two => 2u8,
+            IoDebugTestEnum::One => 1u8,
             IoDebugTestEnum::_Other(v) => v,
         }
     }
