@@ -379,29 +379,56 @@ impl<'a> SignalCtx<'a> {
         self.signal.signal_value_enum.is_some()
     }
 
+    fn is_float(&self) -> bool {
+        self.signal.physical_type.is_float()
+    }
+
+    fn factor_literal(&self) -> TokenStream {
+        let phys = &self.signal.physical_type;
+        if self.is_float() {
+            phys.fliteral(self.layout.factor).to_token_stream()
+        } else {
+            phys.literal(self.layout.factor as i64).to_token_stream()
+        }
+    }
+
+    fn offset_literal(&self) -> TokenStream {
+        let phys = &self.signal.physical_type;
+        if self.is_float() {
+            phys.fliteral(self.layout.offset).to_token_stream()
+        } else {
+            phys.literal(self.layout.offset as i64).to_token_stream()
+        }
+    }
+
+    fn int_repr_for_float(&self) -> syn::Ident {
+        let ty = IntReprType::from_size_sign(self.layout.size, false);
+        format_ident!("{}", ty.as_rust_type())
+    }
+
+    fn f64_to_correct_literal_with_type(&self, value: f64) -> TokenStream {
+        let phys = &self.signal.physical_type;
+        if self.is_float() {
+            phys.fliteral(value).to_token_stream()
+        } else {
+            phys.literal(value as i64).to_token_stream()
+        }
+    }
+
     fn range_check(&self) -> TokenStream {
         if self.is_enum() {
             return quote! {};
         }
 
-        let phys = &self.signal.physical_type;
         let min = self.layout.min;
         let max = self.layout.max;
 
-        let min_literal: TokenStream;
-        let max_literal: TokenStream;
-
-        if phys.is_float() {
-            min_literal = phys.fliteral(min).to_token_stream();
-            max_literal = phys.fliteral(max).to_token_stream();
-        } else {
-            min_literal = phys.literal(min as i64).to_token_stream();
-            max_literal = phys.literal(max as i64).to_token_stream();
-        }
+        let min = self.f64_to_correct_literal_with_type(min);
+        let max = self.f64_to_correct_literal_with_type(max);
 
         //TODO: no need to check if unsigned value is less than 0
         quote! {
-            if value < #min_literal || value > #max_literal {
+            if value < #min || value > #max {
                 return Err(CanError::ValueOutOfRange);
             }
         }
@@ -420,18 +447,12 @@ impl<'a> SignalCtx<'a> {
         let start = self.start_bit();
         let end = self.end_bit();
 
-        if self.is_enum() || !self.signal.physical_type.is_float() {
+        if self.is_enum() || !self.is_float() {
             let raw_ty = self.raw_rust_type();
-            quote! {
-                let #raw = data.view_bits::<Lsb0>()[#start..#end].load_le::<#raw_ty>();
-            }
+            quote! { let #raw = data.view_bits::<Lsb0>()[#start..#end].load_le::<#raw_ty>(); }
         } else {
-            let int_ty = IntReprType::from_size_sign(self.layout.size, false);
-            let int_ty_ident = format_ident!("{}", int_ty.as_rust_type());
-
-            quote! {
-                let #raw = data.view_bits::<Lsb0>()[#start..#end].load_le::<#int_ty_ident>();
-            }
+            let int_ty = self.int_repr_for_float();
+            quote! { let #raw = data.view_bits::<Lsb0>()[#start..#end].load_le::<#int_ty>(); }
         }
     }
 
@@ -445,30 +466,16 @@ impl<'a> SignalCtx<'a> {
             let enum_name = self.enum_ident();
             let raw_ty = self.raw_rust_type();
             quote! { #field: #enum_name::from(#raw as #raw_ty) }
-        } else if self.signal.physical_type.is_float() {
-            let factor = self.layout.factor;
-            let offset = self.layout.offset;
-            let phys = &self.signal.physical_type;
+        } else if self.is_float() {
+            let factor = self.factor_literal();
+            let offset = self.offset_literal();
+            let ty = format_ident!("{}", self.signal.physical_type.as_rust_type());
 
-            let factor_literal = phys.fliteral(factor).to_token_stream();
-            let offset_literal = phys.fliteral(offset).to_token_stream();
-
-            let ty = format_ident!("{}", phys.as_rust_type());
-
-            quote! {
-                #field: (#raw as #ty) * (#factor_literal) + (#offset_literal)
-            }
+            quote! { #field: (#raw as #ty) * (#factor) + (#offset) }
         } else {
-            let factor = self.layout.factor;
-            let offset = self.layout.offset;
-            let phys = &self.signal.physical_type;
-
-            let factor_literal = phys.literal(factor as i64).to_token_stream();
-            let offset_literal = phys.literal(offset as i64).to_token_stream();
-
-            quote! {
-                #field: (#raw) * (#factor_literal) + (#offset_literal)
-            }
+            let factor = self.factor_literal();
+            let offset = self.offset_literal();
+            quote! { #field: (#raw) * (#factor) + (#offset) }
         }
     }
 
@@ -481,33 +488,20 @@ impl<'a> SignalCtx<'a> {
 
         if self.is_enum() {
             let ty = self.raw_rust_type();
-            quote! {
-                data.view_bits_mut::<Lsb0>()[#start..#end].store_le(#ty::from(self.#field));
-            }
-        } else if self.signal.physical_type.is_float() {
-            let phys = &self.signal.physical_type;
-            let factor = self.layout.factor;
-            let offset = self.layout.offset;
-
-            let factor_literal = phys.fliteral(factor).to_token_stream();
-            let offset_literal = phys.fliteral(offset).to_token_stream();
-
-            let int_ty = IntReprType::from_size_sign(self.layout.size, false);
-            let int_ty_ident = format_ident!("{}", int_ty.as_rust_type());
+            quote! { data.view_bits_mut::<Lsb0>()[#start..#end].store_le(#ty::from(self.#field)); }
+        } else if self.is_float() {
+            let factor = self.factor_literal();
+            let offset = self.offset_literal();
+            let int_ty = self.int_repr_for_float();
 
             quote! {
-                data.view_bits_mut::<Lsb0>()[#start..#end].store_le(((self.#field - (#offset_literal)) / (#factor_literal)) as #int_ty_ident);
+                data.view_bits_mut::<Lsb0>()[#start..#end].store_le(((self.#field - (#offset)) / (#factor)) as #int_ty);
             }
         } else {
-            let factor = self.layout.factor;
-            let offset = self.layout.offset;
-            let phys = &self.signal.physical_type;
-            
-            let factor_literal = phys.literal(factor as i64).to_token_stream();
-            let offset_literal = phys.literal(offset as i64).to_token_stream();
-            
+            let factor = self.factor_literal();
+            let offset = self.offset_literal();
             quote! {
-                data.view_bits_mut::<Lsb0>()[#start..#end].store_le((self.#field - (#offset_literal)) / (#factor_literal));
+                data.view_bits_mut::<Lsb0>()[#start..#end].store_le((self.#field - (#offset)) / (#factor));
             }
         }
     }
