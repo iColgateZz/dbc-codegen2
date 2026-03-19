@@ -8,7 +8,7 @@ pub enum CanError {
 }
 pub trait CanMessage<const LEN: usize>: Sized {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError>;
-    fn encode(&self) -> (Id, [u8; LEN]);
+    fn encode(&self) -> [u8; LEN];
 }
 #[derive(Debug, Clone)]
 pub enum Msg {
@@ -20,11 +20,7 @@ pub enum Msg {
 }
 impl Msg {
     fn try_from(frame: &impl Frame) -> Result<Self, CanError> {
-        let id = match frame.id() {
-            Id::Standard(sid) => sid.as_raw() as u32,
-            Id::Extended(eid) => eid.as_raw(),
-        };
-        let result = match id {
+        let result = match frame.id() {
             DriverHeartbeat::ID => {
                 Msg::DriverHeartbeat(DriverHeartbeat::try_from_frame(frame)?)
             }
@@ -69,7 +65,7 @@ pub struct DriverHeartbeat {
     pub driver_heartbeat_cmd: DriverHeartbeatCmd,
 }
 impl DriverHeartbeat {
-    pub const ID: u32 = 100u32;
+    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(100u16) });
     pub const LEN: usize = 1usize;
     pub fn new(driver_heartbeat_cmd: DriverHeartbeatCmd) -> Result<Self, CanError> {
         let mut msg = Self { driver_heartbeat_cmd };
@@ -100,11 +96,10 @@ impl CanMessage<{ DriverHeartbeat::LEN }> for DriverHeartbeat {
             ),
         })
     }
-    fn encode(&self) -> (Id, [u8; DriverHeartbeat::LEN]) {
+    fn encode(&self) -> [u8; DriverHeartbeat::LEN] {
         let mut data = [0u8; DriverHeartbeat::LEN];
         data[0usize] = u8::from(self.driver_heartbeat_cmd);
-        let id = Id::Standard(StandardId::new(Self::ID as u16).unwrap());
-        (id, data)
+        data
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -139,7 +134,7 @@ pub struct IoDebug {
     pub io_debug_test_float: f64,
 }
 impl IoDebug {
-    pub const ID: u32 = 500u32;
+    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(500u16) });
     pub const LEN: usize = 4usize;
     pub fn new(
         io_debug_test_unsigned: u8,
@@ -217,14 +212,13 @@ impl CanMessage<{ IoDebug::LEN }> for IoDebug {
             io_debug_test_float: raw_io_debug_test_float as f64 * 0.5f64,
         })
     }
-    fn encode(&self) -> (Id, [u8; IoDebug::LEN]) {
+    fn encode(&self) -> [u8; IoDebug::LEN] {
         let mut data = [0u8; IoDebug::LEN];
         data[0usize] = (self.io_debug_test_unsigned / 1f64) as u8;
         data[1usize] = u8::from(self.io_debug_test_enum);
         data[2usize] = (self.io_debug_test_signed / 1f64) as u8;
         data[3usize] = (self.io_debug_test_float / 0.5f64) as u8;
-        let id = Id::Standard(StandardId::new(Self::ID as u16).unwrap());
-        (id, data)
+        data
     }
 }
 #[derive(Debug, Clone)]
@@ -233,7 +227,7 @@ pub struct MotorCmd {
     pub motor_cmd_drive: u8,
 }
 impl MotorCmd {
-    pub const ID: u32 = 101u32;
+    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(101u16) });
     pub const LEN: usize = 1usize;
     pub fn new(motor_cmd_steer: i8, motor_cmd_drive: u8) -> Result<Self, CanError> {
         let mut msg = Self {
@@ -278,12 +272,11 @@ impl CanMessage<{ MotorCmd::LEN }> for MotorCmd {
             motor_cmd_drive: raw_motor_cmd_drive as f64 * 1f64,
         })
     }
-    fn encode(&self) -> (Id, [u8; MotorCmd::LEN]) {
+    fn encode(&self) -> [u8; MotorCmd::LEN] {
         let mut data = [0u8; MotorCmd::LEN];
         data[0usize] = (self.motor_cmd_steer / 1f64) as u8;
         data[0usize] = (self.motor_cmd_drive / 1f64) as u8;
-        let id = Id::Standard(StandardId::new(Self::ID as u16).unwrap());
-        (id, data)
+        data
     }
 }
 #[derive(Debug, Clone)]
@@ -292,7 +285,7 @@ pub struct MotorStatus {
     pub motor_status_speed_kph: f64,
 }
 impl MotorStatus {
-    pub const ID: u32 = 400u32;
+    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(400u16) });
     pub const LEN: usize = 3usize;
     pub fn new(
         motor_status_wheel_error: u8,
@@ -343,14 +336,13 @@ impl CanMessage<{ MotorStatus::LEN }> for MotorStatus {
             motor_status_speed_kph: raw_motor_status_speed_kph as f64 * 0.001f64,
         })
     }
-    fn encode(&self) -> (Id, [u8; MotorStatus::LEN]) {
+    fn encode(&self) -> [u8; MotorStatus::LEN] {
         let mut data = [0u8; MotorStatus::LEN];
         data[0usize] = (self.motor_status_wheel_error / 1f64) as u8;
         let bytes = ((self.motor_status_speed_kph / 0.001f64) as u16).to_le_bytes();
         data[1usize] = bytes[0usize];
         data[2usize] = bytes[1usize];
-        let id = Id::Standard(StandardId::new(Self::ID as u16).unwrap());
-        (id, data)
+        data
     }
 }
 #[derive(Debug, Clone)]
@@ -367,7 +359,7 @@ pub struct SensorSonars {
     pub sensor_sonars_no_filt_rear: f64,
 }
 impl SensorSonars {
-    pub const ID: u32 = 200u32;
+    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(200u16) });
     pub const LEN: usize = 8usize;
     pub fn new(
         sensor_sonars_mux: u8,
@@ -563,7 +555,7 @@ impl CanMessage<{ SensorSonars::LEN }> for SensorSonars {
             sensor_sonars_no_filt_rear: raw_sensor_sonars_no_filt_rear as f64 * 0.1f64,
         })
     }
-    fn encode(&self) -> (Id, [u8; SensorSonars::LEN]) {
+    fn encode(&self) -> [u8; SensorSonars::LEN] {
         let mut data = [0u8; SensorSonars::LEN];
         data[0usize] = (self.sensor_sonars_mux / 1f64) as u8;
         let bytes = ((self.sensor_sonars_err_count / 1f64) as u16).to_le_bytes();
@@ -593,7 +585,6 @@ impl CanMessage<{ SensorSonars::LEN }> for SensorSonars {
         let bytes = ((self.sensor_sonars_no_filt_rear / 0.1f64) as u16).to_le_bytes();
         data[6usize] = bytes[0usize];
         data[7usize] = bytes[1usize];
-        let id = Id::Standard(StandardId::new(Self::ID as u16).unwrap());
-        (id, data)
+        data
     }
 }

@@ -63,7 +63,7 @@ impl ToTokens for MsgTrait {
         quote! {
             pub trait CanMessage<const LEN: usize>: Sized {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError>;
-                fn encode(&self) -> (Id, [u8; LEN]);
+                fn encode(&self) -> [u8; LEN];
             }
         }
         .to_tokens(tokens);
@@ -97,12 +97,7 @@ impl ToTokens for MsgEnum<'_> {
         quote! {
             impl Msg {
                 fn try_from(frame: &impl Frame) -> Result<Self, CanError> {
-                    let id = match frame.id() {
-                        Id::Standard(sid) => sid.as_raw() as u32,
-                        Id::Extended(eid) => eid.as_raw(),
-                    };
-
-                    let result = match id {
+                    let result = match frame.id() {
                         #( #arms, )*
                         _ => return Err(CanError::Err1),
                     };
@@ -142,9 +137,17 @@ impl ToTokens for MessageDef<'_> {
             quote! { pub #field: #ty }
         });
 
-        let id = match msg.id {
-            MessageId::Standard(id) => id as u32,
-            MessageId::Extended(id) => id,
+        let id_expr = match msg.id {
+            MessageId::Standard(id) => {
+                quote! {
+                    Id::Standard(unsafe { StandardId::new_unchecked(#id) })
+                }
+            }
+            MessageId::Extended(id) => {
+                quote! {
+                    Id::Extended(unsafe { ExtendedId::new_unchecked(#id) })
+                }
+            }
         };
 
         let len = msg.size as usize;
@@ -195,7 +198,7 @@ impl ToTokens for MessageDef<'_> {
 
         let impl_block = quote! {
             impl #name {
-                pub const ID: u32 = #id;
+                pub const ID: Id = #id_expr;
                 pub const LEN: usize = #len;
 
                 pub fn new(
@@ -237,25 +240,15 @@ impl ToTokens for MessageDef<'_> {
         };
 
         let encode = {
-            let id_expr = match msg.id {
-                MessageId::Standard(_) => {
-                    quote! { Id::Standard(StandardId::new(Self::ID as u16).unwrap()) }
-                }
-                MessageId::Extended(_) => {
-                    quote! { Id::Extended(ExtendedId::new(Self::ID).unwrap()) }
-                }
-            };
-
             let writes = signals.iter().map(|s| s.encode_write());
 
             quote! {
-                fn encode(&self) -> (Id, [u8; #name::LEN]) {
+                fn encode(&self) -> [u8; #name::LEN] {
                     let mut data = [0u8; #name::LEN];
 
                     #( #writes )*
 
-                    let id = #id_expr;
-                    (id, data)
+                    data
                 }
             }
         };
