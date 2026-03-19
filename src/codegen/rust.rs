@@ -5,7 +5,7 @@ use syn::File;
 use crate::DbcFile;
 use crate::ir::message::{Message, MessageId};
 use crate::ir::signal::Signal;
-use crate::ir::signal_layout::SignalLayout;
+use crate::ir::signal_layout::{SignalLayout, ByteOrder};
 use crate::ir::signal_value_type::{RustIntegerLiteral, RustType, RustFloatLiteral, IntReprType};
 
 pub struct RustGen;
@@ -442,17 +442,25 @@ impl<'a> SignalCtx<'a> {
         self.start_bit() + self.layout.size as usize
     }
 
+    fn bitvec_order(&self) -> TokenStream {
+        match self.layout.byte_order {
+            ByteOrder::LittleEndian => quote! { Lsb0 },
+            ByteOrder::BigEndian => quote! { Msb0 },
+        }
+    }
+
     fn decode_read(&self) -> TokenStream {
         let raw = self.raw_ident();
         let start = self.start_bit();
         let end = self.end_bit();
+        let order = self.bitvec_order();
 
         if self.is_enum() || !self.is_float() {
             let raw_ty = self.raw_rust_type();
-            quote! { let #raw = data.view_bits::<Lsb0>()[#start..#end].load_le::<#raw_ty>(); }
+            quote! { let #raw = data.view_bits::<#order>()[#start..#end].load_le::<#raw_ty>(); }
         } else {
             let int_ty = self.int_repr_for_float();
-            quote! { let #raw = data.view_bits::<Lsb0>()[#start..#end].load_le::<#int_ty>(); }
+            quote! { let #raw = data.view_bits::<#order>()[#start..#end].load_le::<#int_ty>(); }
         }
     }
 
@@ -485,23 +493,24 @@ impl<'a> SignalCtx<'a> {
         let field = self.field_ident();
         let start = self.start_bit();
         let end = self.end_bit();
+        let order = self.bitvec_order();
 
         if self.is_enum() {
             let ty = self.raw_rust_type();
-            quote! { data.view_bits_mut::<Lsb0>()[#start..#end].store_le(#ty::from(self.#field)); }
+            quote! { data.view_bits_mut::<#order>()[#start..#end].store_le(#ty::from(self.#field)); }
         } else if self.is_float() {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             let int_ty = self.int_repr_for_float();
 
             quote! {
-                data.view_bits_mut::<Lsb0>()[#start..#end].store_le(((self.#field - (#offset)) / (#factor)) as #int_ty);
+                data.view_bits_mut::<#order>()[#start..#end].store_le(((self.#field - (#offset)) / (#factor)) as #int_ty);
             }
         } else {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             quote! {
-                data.view_bits_mut::<Lsb0>()[#start..#end].store_le((self.#field - (#offset)) / (#factor));
+                data.view_bits_mut::<#order>()[#start..#end].store_le((self.#field - (#offset)) / (#factor));
             }
         }
     }
