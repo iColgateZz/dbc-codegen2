@@ -449,6 +449,7 @@ impl<'a> SignalCtx<'a> {
         }
     }
 
+    //TODO: depending on the byte order calculate the correct start and end bits!
     fn decode_read(&self) -> TokenStream {
         let raw = self.raw_ident();
         let start = self.start_bit();
