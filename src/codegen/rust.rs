@@ -4,9 +4,10 @@ use syn::File;
 
 use crate::DbcFile;
 use crate::ir::message::{Message, MessageId};
-use crate::ir::signal::Signal;
+use crate::ir::signal::{MultiplexIndicator, Signal};
 use crate::ir::signal_layout::{SignalLayout, ByteOrder};
 use crate::ir::signal_value_type::{RustIntegerLiteral, RustType, RustFloatLiteral, IntReprType};
+use std::collections::BTreeMap;
 
 pub struct RustGen;
 
@@ -119,13 +120,48 @@ struct MessageDef<'a> {
 impl ToTokens for MessageDef<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let msg = self.msg;
-        let name = format_ident!("{}", msg.name.upper_camel());
 
         let signals: Vec<SignalCtx> = msg
             .signal_idxs
             .iter()
             .map(|idx| SignalCtx::new(&self.file.signals[idx.0], self.file))
             .collect();
+
+        //TODO: this should definitely happen on the IR level
+        let mut plain = Vec::new();
+        let mut muxed: BTreeMap<u64, Vec<&SignalCtx>> = BTreeMap::new();
+        let mut mux_signal: Option<&SignalCtx> = None;
+
+        for s in &signals {
+            match &s.signal.multiplexer {
+                MultiplexIndicator::Plain => plain.push(s),
+
+                MultiplexIndicator::Multiplexor => {
+                    mux_signal = Some(s);
+                    // plain.push(s);
+                }
+
+                MultiplexIndicator::MultiplexedSignal(v) => {
+                    muxed.entry(*v).or_default().push(s);
+                }
+
+                // intentionally skip
+                MultiplexIndicator::MultiplexorAndMultiplexedSignal(_v) => (),
+            }
+        }
+
+        if muxed.is_empty() {
+            self.generate_plain(tokens, &signals);
+        } else {
+            self.generate_mux(tokens, &signals, plain, muxed, mux_signal.unwrap());
+        }
+    }
+}
+
+impl MessageDef<'_> {
+    fn generate_plain(&self, tokens: &mut TokenStream, signals: &Vec<SignalCtx>) {
+        let msg = self.msg;
+        let name = format_ident!("{}", msg.name.upper_camel());
 
         let value_enums = signals
             .iter()
@@ -271,7 +307,200 @@ impl ToTokens for MessageDef<'_> {
         }
         .to_tokens(tokens);
     }
+
+    fn generate_mux(
+        &self,
+        tokens: &mut TokenStream,
+        signals: &Vec<SignalCtx>,
+        plain: Vec<&SignalCtx>,
+        muxed: BTreeMap<u64, Vec<&SignalCtx>>,
+        mux_signal: &SignalCtx,
+    ) {
+        let msg = self.msg;
+        let name = format_ident!("{}", msg.name.upper_camel());
+        let mux_enum_name = format_ident!("{}Mux", name);
+
+        let value_enums = signals
+            .iter()
+            .map(|s| SignalValueEnum { signal: s.signal });
+
+        let id_expr = match msg.id {
+            MessageId::Standard(id) => {
+                quote! { Id::Standard(unsafe { StandardId::new_unchecked(#id) }) }
+            }
+            MessageId::Extended(id) => {
+                quote! { Id::Extended(unsafe { ExtendedId::new_unchecked(#id) }) }
+            }
+        };
+
+        let len = msg.size as usize;
+
+        let plain_fields = plain.iter().map(|s| {
+            let field = s.field_ident();
+            let ty = s.rust_type();
+            quote! { pub #field: #ty }
+        });
+
+        let plain_reads = plain.iter().map(|s| s.decode_read());
+        let plain_init = plain.iter().map(|s| s.decode_field());
+        let plain_writes = plain.iter().map(|s| s.encode_write());
+
+        let mux_structs = muxed.iter().map(|(v, sigs)| {
+            let struct_name = format_ident!("{}Mux{}", name, v);
+
+            let fields = sigs.iter().map(|s| {
+                let field = s.field_ident();
+                let ty = s.rust_type();
+                quote! { pub #field: #ty }
+            });
+
+            let reads = sigs.iter().map(|s| s.decode_read());
+            let inits = sigs.iter().map(|s| s.decode_field());
+            let writes = sigs.iter().map(|s| s.encode_write());
+
+            quote! {
+                #[derive(Debug, Clone)]
+                pub struct #struct_name {
+                    #( #fields, )*
+                }
+
+                impl #struct_name {
+
+                    fn decode_from(data: &[u8]) -> Result<Self, CanError> {
+
+                        #( #reads )*
+
+                        Ok(Self {
+                            #( #inits, )*
+                        })
+                    }
+
+                    fn encode_into(&self, data: &mut [u8]) {
+                        #( #writes )*
+                    }
+                }
+            }
+        });
+
+        let mux_variants = muxed.keys().map(|v| {
+            let struct_name = format_ident!("{}Mux{}", name, v);
+            let variant = format_ident!("V{}", v);
+
+            quote! { #variant(#struct_name) }
+        });
+
+        let mux_raw_ty = mux_signal.raw_rust_type();
+        let (mux_start, mux_end) = mux_signal.start_end_bit();
+        let mux_order = mux_signal.bitvec_order();
+
+        let mux_encode_arms = muxed.keys().map(|v| {
+            let variant = format_ident!("V{}", v);
+
+            quote! {
+                #mux_enum_name::#variant(inner) => {
+
+                    data.view_bits_mut::<#mux_order>()[#mux_start..#mux_end]
+                        .store_le(#v as #mux_raw_ty);
+
+                    inner.encode_into(&mut data);
+                }
+            }
+        });
+
+        let mux_read = mux_signal.decode_read();
+        let mux_raw = mux_signal.raw_ident();
+
+        let mux_decode_arms = muxed.keys().map(|v| {
+            let lit = mux_signal.signal.physical_type.literal(*v as i64);
+            let struct_name = format_ident!("{}Mux{}", name, v);
+            let variant = format_ident!("V{}", v);
+
+            quote! {
+                #lit => #mux_enum_name::#variant(#struct_name::decode_from(data)?)
+            }
+        });
+
+
+        let struct_def = quote! {
+            #[derive(Debug, Clone)]
+            pub struct #name {
+                #( #plain_fields, )*
+                pub mux: #mux_enum_name,
+            }
+        };
+
+        let trait_impl = quote! {
+            impl CanMessage<{ #name::LEN }> for #name {
+
+                fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
+
+                    let data = frame.data();
+
+                    if data.len() < Self::LEN {
+                        return Err(CanError::InvalidPayloadSize);
+                    }
+
+                    #( #plain_reads )*
+
+                    #mux_read
+
+                    let mux = match #mux_raw {
+
+                        #( #mux_decode_arms, )*
+
+                        _ => return Err(CanError::Err2),
+                    };
+
+                    Ok(Self {
+                        #( #plain_init, )*
+                        mux,
+                    })
+                }
+
+                fn encode(&self) -> [u8; #name::LEN] {
+
+                    let mut data = [0u8; #name::LEN];
+
+                    #( #plain_writes )*
+
+                    match &self.mux {
+                        #( #mux_encode_arms )*
+                    }
+
+                    data
+                }
+            }
+        };
+
+        let impl_block = quote! {
+            impl #name {
+
+                pub const ID: Id = #id_expr;
+                pub const LEN: usize = #len;
+            }
+        };
+
+        quote! {
+
+            #( #value_enums )*
+
+            #( #mux_structs )*
+
+            #[derive(Debug, Clone)]
+            pub enum #mux_enum_name {
+                #( #mux_variants, )*
+            }
+
+            #struct_def
+
+            #impl_block
+
+            #trait_impl
+        }
+        .to_tokens(tokens);
+    }
 }
+
 struct SignalValueEnum<'a> {
     signal: &'a Signal,
 }
