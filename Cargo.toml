@@ -12,7 +12,7 @@ description = "DBC code generator for CAN bus messages"
 license = "MIT"
 repository = "https://github.com/iColgateZz/dbc-codegen2"
 readme = "README.md"
-keywords = ["cli", "can", "dbc", "codegen", "embedded", "automotive"]
+keywords = ["can", "dbc", "codegen", "embedded", "automotive"]
 categories = ["cli", "can", "dbc", "embedded", "codegen", "automotive"]
 
 [dependencies]
