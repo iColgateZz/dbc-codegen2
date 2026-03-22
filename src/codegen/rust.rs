@@ -162,17 +162,12 @@ impl MessageDef<'_> {
     fn generate_plain(&self, tokens: &mut TokenStream, signals: &Vec<SignalCtx>) {
         let msg = self.msg;
         let name = format_ident!("{}", msg.name.upper_camel());
+        let signals: Vec<&SignalCtx> = signals.iter().collect();
 
         let value_enums = signals
             .iter()
             .map(|s| SignalValueEnum { signal: s.signal });
-
-        let fields = signals.iter().map(|s| {
-            let field = s.field_ident();
-            let ty = s.rust_type();
-
-            quote! { pub #field: #ty }
-        });
+        let fields = Self::gen_fields(&signals);
 
         let id_expr = match msg.id {
             MessageId::Standard(id) => {
@@ -187,51 +182,12 @@ impl MessageDef<'_> {
             }
         };
 
+        let constructor_params = Self::gen_constructor_params(&signals);
+        let constructor_fields = Self::gen_constructor_fields(&signals);
+        let constructor_validations = Self::gen_constructor_validations(&signals);
+        let getters = Self::gen_getters(&signals);
+        let setters = Self::gen_setters(&signals);
         let len = msg.size as usize;
-
-        let constructor_params = signals.iter().map(|s| {
-            let field = s.field_ident();
-            let ty = s.rust_type();
-
-            quote! { #field: #ty }
-        });
-
-        let constructor_fields = signals.iter().map(|s| s.field_ident());
-
-        let constructor_validations = signals.iter().map(|s| {
-            let field = s.field_ident();
-            let setter = s.setter_ident();
-
-            quote! {
-                msg.#setter(msg.#field)?;
-            }
-        });
-
-        let getters = signals.iter().map(|s| {
-            let field = s.field_ident();
-            let ty = s.rust_type();
-
-            quote! {
-                pub fn #field(&self) -> #ty {
-                    self.#field
-                }
-            }
-        });
-
-        let setters = signals.iter().map(|s| {
-            let field = s.field_ident();
-            let setter = s.setter_ident();
-            let ty = s.rust_type();
-            let check = s.range_check();
-
-            quote! {
-                pub fn #setter(&mut self, value: #ty) -> Result<(), CanError> {
-                    #check
-                    self.#field = value;
-                    Ok(())
-                }
-            }
-        });
 
         let impl_block = quote! {
             impl #name {
@@ -257,8 +213,8 @@ impl MessageDef<'_> {
         };
 
         let try_from = {
-            let reads = signals.iter().map(|s| s.decode_read());
-            let fields = signals.iter().map(|s| s.decode_field());
+            let reads = Self::gen_reads(&signals);
+            let fields = Self::gen_decode_fields(&signals);
 
             quote! {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
@@ -277,7 +233,7 @@ impl MessageDef<'_> {
         };
 
         let encode = {
-            let writes = signals.iter().map(|s| s.encode_write());
+            let writes = Self::gen_writes(&signals);
 
             quote! {
                 fn encode(&self) -> [u8; #name::LEN] {
@@ -335,55 +291,12 @@ impl MessageDef<'_> {
 
         let len = msg.size as usize;
 
-        let plain_fields = plain.iter().map(|s| {
-            let field = s.field_ident();
-            let ty = s.rust_type();
-            quote! { pub #field: #ty }
-        });
-
-        let plain_getters = plain.iter().map(|s| {
-            let field = s.field_ident();
-            let ty = s.rust_type();
-
-            quote! {
-                pub fn #field(&self) -> #ty {
-                    self.#field
-                }
-            }
-        });
-
-        let plain_setters = plain.iter().map(|s| {
-            let field = s.field_ident();
-            let setter = s.setter_ident();
-            let ty = s.rust_type();
-            let check = s.range_check();
-
-            quote! {
-                pub fn #setter(&mut self, value: #ty) -> Result<(), CanError> {
-                    #check
-                    self.#field = value;
-                    Ok(())
-                }
-            }
-        });
-
-        let plain_constructor_params = plain.iter().map(|s| {
-            let field = s.field_ident();
-            let ty = s.rust_type();
-
-            quote! { #field: #ty }
-        });
-
-        let plain_constructor_fields = plain.iter().map(|s| s.field_ident());
-
-        let plain_constructor_validations = plain.iter().map(|s| {
-            let field = s.field_ident();
-            let setter = s.setter_ident();
-
-            quote! {
-                msg.#setter(msg.#field)?;
-            }
-        });
+        let plain_fields = Self::gen_fields(&plain);
+        let plain_getters = Self::gen_getters(&plain);
+        let plain_setters = Self::gen_setters(&plain);
+        let plain_constructor_params = Self::gen_constructor_params(&plain);
+        let plain_constructor_fields = Self::gen_constructor_fields(&plain);
+        let plain_constructor_validations = Self::gen_constructor_validations(&plain);
 
         let constructor = quote! {
             pub fn new(
@@ -402,65 +315,24 @@ impl MessageDef<'_> {
             }
         };
 
-        let plain_reads = plain.iter().map(|s| s.decode_read());
-        let plain_init = plain.iter().map(|s| s.decode_field());
-        let plain_writes = plain.iter().map(|s| s.encode_write());
+        let plain_reads = Self::gen_reads(&plain);
+        let plain_init = Self::gen_decode_fields(&plain);
+        let plain_writes = Self::gen_writes(&plain);
 
         let mux_structs = muxed.iter().map(|(v, sigs)| {
             let struct_name = format_ident!("{}Mux{}", name, v);
 
-            let fields = sigs.iter().map(|s| {
-                let field = s.field_ident();
-                let ty = s.rust_type();
-                quote! { pub #field: #ty }
-            });
+            let fields = Self::gen_fields(&sigs);
+            let constructor_params = Self::gen_constructor_params(&sigs);
+            let constructor_fields = Self::gen_constructor_fields(&sigs);
+            let constructor_validations = Self::gen_constructor_validations(&sigs);
 
-            let reads = sigs.iter().map(|s| s.decode_read());
-            let inits = sigs.iter().map(|s| s.decode_field());
-            let writes = sigs.iter().map(|s| s.encode_write());
+            let getters = Self::gen_getters(&sigs);
+            let setters = Self::gen_setters(&sigs);
 
-            let constructor_params = sigs.iter().map(|s| {
-                let field = s.field_ident();
-                let ty = s.rust_type();
-                quote! { #field: #ty }
-            });
-
-            let constructor_fields = sigs.iter().map(|s| s.field_ident());
-
-            let constructor_validations = sigs.iter().map(|s| {
-                let field = s.field_ident();
-                let setter = s.setter_ident();
-
-                quote! {
-                    msg.#setter(msg.#field)?;
-                }
-            });
-
-            let getters = sigs.iter().map(|s| {
-                let field = s.field_ident();
-                let ty = s.rust_type();
-
-                quote! {
-                    pub fn #field(&self) -> #ty {
-                        self.#field
-                    }
-                }
-            });
-
-            let setters = sigs.iter().map(|s| {
-                let field = s.field_ident();
-                let setter = s.setter_ident();
-                let ty = s.rust_type();
-                let check = s.range_check();
-
-                quote! {
-                    pub fn #setter(&mut self, value: #ty) -> Result<(), CanError> {
-                        #check
-                        self.#field = value;
-                        Ok(())
-                    }
-                }
-            });
+            let reads = Self::gen_reads(&sigs);
+            let inits = Self::gen_decode_fields(&sigs);
+            let writes = Self::gen_writes(&sigs);
 
             quote! {
                 #[derive(Debug, Clone)]
@@ -626,6 +498,79 @@ impl MessageDef<'_> {
             #trait_impl
         }
         .to_tokens(tokens);
+    }
+
+    fn gen_fields(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
+        signals.iter().map(|s| {
+            let field = s.field_ident();
+            let ty = s.rust_type();
+            quote! { pub #field: #ty }
+        })
+    }
+
+    fn gen_constructor_params(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
+        signals.iter().map(|s| {
+            let field = s.field_ident();
+            let ty = s.rust_type();
+            quote! { #field: #ty }
+        })
+    }
+
+    fn gen_constructor_fields(signals: &[&SignalCtx]) -> impl Iterator<Item = syn::Ident> {
+        signals.iter().map(|s| s.field_ident())
+    }
+
+    fn gen_constructor_validations(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
+        signals.iter().map(|s| {
+            let field = s.field_ident();
+            let setter = s.setter_ident();
+
+            quote! {
+                msg.#setter(msg.#field)?;
+            }
+        })
+    }
+
+    fn gen_getters(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
+        signals.iter().map(|s| {
+            let field = s.field_ident();
+            let ty = s.rust_type();
+
+            quote! {
+                pub fn #field(&self) -> #ty {
+                    self.#field
+                }
+            }
+        })
+    }
+
+    fn gen_setters(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
+        signals.iter().map(|s| {
+            let field = s.field_ident();
+            let setter = s.setter_ident();
+            let ty = s.rust_type();
+            let check = s.range_check();
+
+            quote! {
+                pub fn #setter(&mut self, value: #ty) -> Result<(), CanError> {
+                    #check
+                    self.#field = value;
+                    Ok(())
+                }
+            }
+        })
+    }
+
+    fn gen_reads(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
+        signals.iter().map(|s| s.decode_read())
+    }
+
+    fn gen_decode_fields(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
+        signals.iter().map(|s| s.decode_field())
+    }
+
+    fn gen_writes(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
+        signals.iter().map(|s| s.encode_write())
     }
 }
 
