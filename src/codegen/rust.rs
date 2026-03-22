@@ -48,8 +48,8 @@ impl ToTokens for ErrorEnum {
         quote! {
             #[derive(Debug, Clone)]
             pub enum CanError {
-                Err1,
-                Err2,
+                UnknownFrameId,
+                UnknownMuxValue,
                 InvalidPayloadSize,
                 ValueOutOfRange,
             }
@@ -101,7 +101,7 @@ impl ToTokens for MsgEnum<'_> {
                 fn try_from(frame: &impl Frame) -> Result<Self, CanError> {
                     let result = match frame.id() {
                         #( #arms, )*
-                        _ => return Err(CanError::Err1),
+                        _ => return Err(CanError::UnknownFrameId),
                     };
 
                     Ok(result)
@@ -570,7 +570,7 @@ impl MessageDef<'_> {
 
                         #( #mux_decode_arms, )*
 
-                        _ => return Err(CanError::Err2),
+                        _ => return Err(CanError::UnknownMuxValue),
                     };
 
                     Ok(Self {

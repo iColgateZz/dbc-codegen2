@@ -2,8 +2,8 @@ use embedded_can::{Frame, Id, StandardId, ExtendedId};
 use bitvec::prelude::*;
 #[derive(Debug, Clone)]
 pub enum CanError {
-    Err1,
-    Err2,
+    UnknownFrameId,
+    UnknownMuxValue,
     InvalidPayloadSize,
     ValueOutOfRange,
 }
@@ -29,7 +29,7 @@ impl Msg {
             MotorCmd::ID => Msg::MotorCmd(MotorCmd::try_from_frame(frame)?),
             MotorStatus::ID => Msg::MotorStatus(MotorStatus::try_from_frame(frame)?),
             SensorSonars::ID => Msg::SensorSonars(SensorSonars::try_from_frame(frame)?),
-            _ => return Err(CanError::Err1),
+            _ => return Err(CanError::UnknownFrameId),
         };
         Ok(result)
     }
@@ -629,7 +629,7 @@ impl CanMessage<{ SensorSonars::LEN }> for SensorSonars {
         let mux = match raw_sensor_sonars_mux {
             0u8 => SensorSonarsMux::V0(SensorSonarsMux0::decode_from(data)?),
             1u8 => SensorSonarsMux::V1(SensorSonarsMux1::decode_from(data)?),
-            _ => return Err(CanError::Err2),
+            _ => return Err(CanError::UnknownMuxValue),
         };
         Ok(Self {
             sensor_sonars_err_count: (raw_sensor_sonars_err_count) * (1u16) + (0u16),
