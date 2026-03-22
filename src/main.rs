@@ -1,9 +1,13 @@
 use can_dbc::Dbc as ParsedDbc;
-use dbc_codegen::{DbcFile, app::App, ir::IRBuilder};
 use clap::{Parser, Subcommand};
+use dbc_codegen::{
+    DbcFile,
+    app::App,
+    ir::IRBuilder, utils::Language,
+};
 use std::{
     fs::{self, File},
-    io::{BufWriter, Write},
+    io::{BufWriter, Write}, path::PathBuf,
 };
 
 #[derive(Parser)]
@@ -64,9 +68,12 @@ fn main() {
         }
 
         Command::Gen { input, output } => {
-            let code = App::convert(&input);
-            let mut out = File::create(output).unwrap();
-            write!(out, "{}", code).unwrap();
+            for lang in [Language::Rust, Language::Cpp] {
+                let ext = lang.file_extension();
+                let code = App::convert(&input, lang);
+                let out_path = PathBuf::from(&output).with_extension(ext);
+                fs::write(&out_path, code).expect("Unable to write output file");
+            }
         }
     }
 }
