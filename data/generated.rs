@@ -377,6 +377,64 @@ pub struct SensorSonarsMux0 {
     pub sensor_sonars_rear: f64,
 }
 impl SensorSonarsMux0 {
+    pub fn new(
+        sensor_sonars_left: f64,
+        sensor_sonars_middle: f64,
+        sensor_sonars_right: f64,
+        sensor_sonars_rear: f64,
+    ) -> Result<Self, CanError> {
+        let mut msg = Self {
+            sensor_sonars_left,
+            sensor_sonars_middle,
+            sensor_sonars_right,
+            sensor_sonars_rear,
+        };
+        msg.set_sensor_sonars_left(msg.sensor_sonars_left)?;
+        msg.set_sensor_sonars_middle(msg.sensor_sonars_middle)?;
+        msg.set_sensor_sonars_right(msg.sensor_sonars_right)?;
+        msg.set_sensor_sonars_rear(msg.sensor_sonars_rear)?;
+        Ok(msg)
+    }
+    pub fn sensor_sonars_left(&self) -> f64 {
+        self.sensor_sonars_left
+    }
+    pub fn sensor_sonars_middle(&self) -> f64 {
+        self.sensor_sonars_middle
+    }
+    pub fn sensor_sonars_right(&self) -> f64 {
+        self.sensor_sonars_right
+    }
+    pub fn sensor_sonars_rear(&self) -> f64 {
+        self.sensor_sonars_rear
+    }
+    pub fn set_sensor_sonars_left(&mut self, value: f64) -> Result<(), CanError> {
+        if value < 0f64 || value > 0f64 {
+            return Err(CanError::ValueOutOfRange);
+        }
+        self.sensor_sonars_left = value;
+        Ok(())
+    }
+    pub fn set_sensor_sonars_middle(&mut self, value: f64) -> Result<(), CanError> {
+        if value < 0f64 || value > 0f64 {
+            return Err(CanError::ValueOutOfRange);
+        }
+        self.sensor_sonars_middle = value;
+        Ok(())
+    }
+    pub fn set_sensor_sonars_right(&mut self, value: f64) -> Result<(), CanError> {
+        if value < 0f64 || value > 0f64 {
+            return Err(CanError::ValueOutOfRange);
+        }
+        self.sensor_sonars_right = value;
+        Ok(())
+    }
+    pub fn set_sensor_sonars_rear(&mut self, value: f64) -> Result<(), CanError> {
+        if value < 0f64 || value > 0f64 {
+            return Err(CanError::ValueOutOfRange);
+        }
+        self.sensor_sonars_rear = value;
+        Ok(())
+    }
     fn decode_from(data: &[u8]) -> Result<Self, CanError> {
         let raw_sensor_sonars_left = data
             .view_bits::<Lsb0>()[16usize..28usize]
@@ -416,6 +474,76 @@ pub struct SensorSonarsMux1 {
     pub sensor_sonars_no_filt_rear: f64,
 }
 impl SensorSonarsMux1 {
+    pub fn new(
+        sensor_sonars_no_filt_left: f64,
+        sensor_sonars_no_filt_middle: f64,
+        sensor_sonars_no_filt_right: f64,
+        sensor_sonars_no_filt_rear: f64,
+    ) -> Result<Self, CanError> {
+        let mut msg = Self {
+            sensor_sonars_no_filt_left,
+            sensor_sonars_no_filt_middle,
+            sensor_sonars_no_filt_right,
+            sensor_sonars_no_filt_rear,
+        };
+        msg.set_sensor_sonars_no_filt_left(msg.sensor_sonars_no_filt_left)?;
+        msg.set_sensor_sonars_no_filt_middle(msg.sensor_sonars_no_filt_middle)?;
+        msg.set_sensor_sonars_no_filt_right(msg.sensor_sonars_no_filt_right)?;
+        msg.set_sensor_sonars_no_filt_rear(msg.sensor_sonars_no_filt_rear)?;
+        Ok(msg)
+    }
+    pub fn sensor_sonars_no_filt_left(&self) -> f64 {
+        self.sensor_sonars_no_filt_left
+    }
+    pub fn sensor_sonars_no_filt_middle(&self) -> f64 {
+        self.sensor_sonars_no_filt_middle
+    }
+    pub fn sensor_sonars_no_filt_right(&self) -> f64 {
+        self.sensor_sonars_no_filt_right
+    }
+    pub fn sensor_sonars_no_filt_rear(&self) -> f64 {
+        self.sensor_sonars_no_filt_rear
+    }
+    pub fn set_sensor_sonars_no_filt_left(
+        &mut self,
+        value: f64,
+    ) -> Result<(), CanError> {
+        if value < 0f64 || value > 0f64 {
+            return Err(CanError::ValueOutOfRange);
+        }
+        self.sensor_sonars_no_filt_left = value;
+        Ok(())
+    }
+    pub fn set_sensor_sonars_no_filt_middle(
+        &mut self,
+        value: f64,
+    ) -> Result<(), CanError> {
+        if value < 0f64 || value > 0f64 {
+            return Err(CanError::ValueOutOfRange);
+        }
+        self.sensor_sonars_no_filt_middle = value;
+        Ok(())
+    }
+    pub fn set_sensor_sonars_no_filt_right(
+        &mut self,
+        value: f64,
+    ) -> Result<(), CanError> {
+        if value < 0f64 || value > 0f64 {
+            return Err(CanError::ValueOutOfRange);
+        }
+        self.sensor_sonars_no_filt_right = value;
+        Ok(())
+    }
+    pub fn set_sensor_sonars_no_filt_rear(
+        &mut self,
+        value: f64,
+    ) -> Result<(), CanError> {
+        if value < 0f64 || value > 0f64 {
+            return Err(CanError::ValueOutOfRange);
+        }
+        self.sensor_sonars_no_filt_rear = value;
+        Ok(())
+    }
     fn decode_from(data: &[u8]) -> Result<Self, CanError> {
         let raw_sensor_sonars_no_filt_left = data
             .view_bits::<Lsb0>()[16usize..28usize]
@@ -464,6 +592,27 @@ pub struct SensorSonars {
 impl SensorSonars {
     pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(200u16) });
     pub const LEN: usize = 8usize;
+    pub fn new(
+        sensor_sonars_err_count: u16,
+        mux: SensorSonarsMux,
+    ) -> Result<Self, CanError> {
+        let mut msg = Self {
+            sensor_sonars_err_count,
+            mux,
+        };
+        msg.set_sensor_sonars_err_count(msg.sensor_sonars_err_count)?;
+        Ok(msg)
+    }
+    pub fn sensor_sonars_err_count(&self) -> u16 {
+        self.sensor_sonars_err_count
+    }
+    pub fn set_sensor_sonars_err_count(&mut self, value: u16) -> Result<(), CanError> {
+        if value < 0u16 || value > 0u16 {
+            return Err(CanError::ValueOutOfRange);
+        }
+        self.sensor_sonars_err_count = value;
+        Ok(())
+    }
 }
 impl CanMessage<{ SensorSonars::LEN }> for SensorSonars {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {

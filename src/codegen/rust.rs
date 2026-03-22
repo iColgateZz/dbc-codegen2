@@ -308,9 +308,6 @@ impl MessageDef<'_> {
         .to_tokens(tokens);
     }
 
-    //TODO: generate getters/setters for plain signals,
-    //      add getters/setters for multiplexed signals,
-    //      new() methods are also missing
     fn generate_mux(
         &self,
         tokens: &mut TokenStream,
@@ -344,6 +341,67 @@ impl MessageDef<'_> {
             quote! { pub #field: #ty }
         });
 
+        let plain_getters = plain.iter().map(|s| {
+            let field = s.field_ident();
+            let ty = s.rust_type();
+
+            quote! {
+                pub fn #field(&self) -> #ty {
+                    self.#field
+                }
+            }
+        });
+
+        let plain_setters = plain.iter().map(|s| {
+            let field = s.field_ident();
+            let setter = s.setter_ident();
+            let ty = s.rust_type();
+            let check = s.range_check();
+
+            quote! {
+                pub fn #setter(&mut self, value: #ty) -> Result<(), CanError> {
+                    #check
+                    self.#field = value;
+                    Ok(())
+                }
+            }
+        });
+
+        let plain_constructor_params = plain.iter().map(|s| {
+            let field = s.field_ident();
+            let ty = s.rust_type();
+
+            quote! { #field: #ty }
+        });
+
+        let plain_constructor_fields = plain.iter().map(|s| s.field_ident());
+
+        let plain_constructor_validations = plain.iter().map(|s| {
+            let field = s.field_ident();
+            let setter = s.setter_ident();
+
+            quote! {
+                msg.#setter(msg.#field)?;
+            }
+        });
+
+        let constructor = quote! {
+            pub fn new(
+                #( #plain_constructor_params, )*
+                mux: #mux_enum_name
+            ) -> Result<Self, CanError> {
+
+                let mut msg = Self {
+                    #( #plain_constructor_fields, )*
+                    mux,
+                };
+
+                #( #plain_constructor_validations )*
+
+                Ok(msg)
+            }
+        };
+
         let plain_reads = plain.iter().map(|s| s.decode_read());
         let plain_init = plain.iter().map(|s| s.decode_field());
         let plain_writes = plain.iter().map(|s| s.encode_write());
@@ -361,6 +419,49 @@ impl MessageDef<'_> {
             let inits = sigs.iter().map(|s| s.decode_field());
             let writes = sigs.iter().map(|s| s.encode_write());
 
+            let constructor_params = sigs.iter().map(|s| {
+                let field = s.field_ident();
+                let ty = s.rust_type();
+                quote! { #field: #ty }
+            });
+
+            let constructor_fields = sigs.iter().map(|s| s.field_ident());
+
+            let constructor_validations = sigs.iter().map(|s| {
+                let field = s.field_ident();
+                let setter = s.setter_ident();
+
+                quote! {
+                    msg.#setter(msg.#field)?;
+                }
+            });
+
+            let getters = sigs.iter().map(|s| {
+                let field = s.field_ident();
+                let ty = s.rust_type();
+
+                quote! {
+                    pub fn #field(&self) -> #ty {
+                        self.#field
+                    }
+                }
+            });
+
+            let setters = sigs.iter().map(|s| {
+                let field = s.field_ident();
+                let setter = s.setter_ident();
+                let ty = s.rust_type();
+                let check = s.range_check();
+
+                quote! {
+                    pub fn #setter(&mut self, value: #ty) -> Result<(), CanError> {
+                        #check
+                        self.#field = value;
+                        Ok(())
+                    }
+                }
+            });
+
             quote! {
                 #[derive(Debug, Clone)]
                 pub struct #struct_name {
@@ -368,6 +469,23 @@ impl MessageDef<'_> {
                 }
 
                 impl #struct_name {
+
+                    pub fn new(
+                        #( #constructor_params ),*
+                    ) -> Result<Self, CanError> {
+
+                        let mut msg = Self {
+                            #( #constructor_fields ),*
+                        };
+
+                        #( #constructor_validations )*
+
+                        Ok(msg)
+                    }
+
+                    #( #getters )*
+
+                    #( #setters )*
 
                     fn decode_from(data: &[u8]) -> Result<Self, CanError> {
 
@@ -481,6 +599,12 @@ impl MessageDef<'_> {
 
                 pub const ID: Id = #id_expr;
                 pub const LEN: usize = #len;
+
+                #constructor
+
+                #( #plain_getters )*
+
+                #( #plain_setters )*
             }
         };
 
