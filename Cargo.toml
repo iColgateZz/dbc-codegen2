@@ -13,7 +13,7 @@ license = "MIT"
 repository = "https://github.com/iColgateZz/dbc-codegen2"
 readme = "README.md"
 keywords = ["can", "dbc", "codegen", "embedded", "automotive"]
-categories = ["cli", "embedded", "codegen", "automotive"]
+categories = ["embedded", "code-generation", "automotive"]
 
 [dependencies]
 can-dbc = "8.0.0"
