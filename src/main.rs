@@ -68,12 +68,13 @@ fn main() {
         }
 
         Command::Gen { input, output } => {
-            for lang in [Language::Rust, Language::Cpp] {
+            // for lang in [Language::Rust, Language::Cpp] {
+                let lang = Language::Rust;
                 let ext = lang.file_extension();
                 let code = App::convert(&input, lang);
                 let out_path = PathBuf::from(&output).with_extension(ext);
                 fs::write(&out_path, code).expect("Unable to write output file");
-            }
+            // }
         }
     }
 }
