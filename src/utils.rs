@@ -22,6 +22,7 @@ impl ToUpperCamelCase for str {
     }
 }
 
+#[derive(clap::ValueEnum, Clone)]
 pub enum Language {
     Rust,
     Cpp,

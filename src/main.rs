@@ -1,13 +1,10 @@
 use can_dbc::Dbc as ParsedDbc;
 use clap::{Parser, Subcommand};
-use dbc_codegen2::{
-    DbcFile,
-    app::App,
-    ir::IRBuilder, utils::Language,
-};
+use dbc_codegen2::{DbcFile, app::App, ir::IRBuilder, utils::Language};
 use std::{
     fs::{self, File},
-    io::{BufWriter, Write}, path::PathBuf,
+    io::{BufWriter, Write},
+    path::PathBuf,
 };
 
 #[derive(Parser)]
@@ -45,6 +42,9 @@ pub enum Command {
         /// Output file
         #[arg(short, long, default_value = "data/generated.rs")]
         output: String,
+        /// Target language for code generation
+        #[arg(short, long, value_enum, default_value = "rust")]
+        lang: Language,
     },
 }
 
@@ -67,14 +67,11 @@ fn main() {
             }
         }
 
-        Command::Gen { input, output } => {
-            // for lang in [Language::Rust, Language::Cpp] {
-                let lang = Language::Rust;
-                let ext = lang.file_extension();
-                let code = App::convert(&input, lang);
-                let out_path = PathBuf::from(&output).with_extension(ext);
-                fs::write(&out_path, code).expect("Unable to write output file");
-            // }
+        Command::Gen { input, output, lang} => {
+            let ext = lang.file_extension();
+            let code = App::convert(&input, lang);
+            let out_path = PathBuf::from(&output).with_extension(ext);
+            fs::write(&out_path, code).expect("Unable to write output file");
         }
     }
 }
