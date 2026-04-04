@@ -81,10 +81,7 @@ struct EngineData {
 
   [[nodiscard]]
   static std::expected<EngineData, CanError>
-  parse(uint32_t id, std::span<const uint8_t, LEN> data) noexcept {
-    if (id != ID)
-      return std::unexpected(CanError::UnknownId);
-
+  parse(std::span<const uint8_t, LEN> data) noexcept {
     const uint16_t raw_rpm = detail::read_le<uint16_t>(&data[0]);
     const uint16_t raw_speed = detail::read_le<uint16_t>(&data[2]);
 
@@ -119,10 +116,7 @@ struct OtherData {
 
   [[nodiscard]]
   static std::expected<OtherData, CanError>
-  parse(uint32_t id, std::span<const uint8_t, LEN> data) noexcept {
-    if (id != ID)
-      return std::unexpected(CanError::UnknownId);
-
+  parse(std::span<const uint8_t, LEN> data) noexcept {
     const uint32_t raw = detail::read_be<uint32_t>(&data[0]);
     return OtherData{.something = static_cast<float>(raw) * 0.001f};
   }
@@ -144,13 +138,13 @@ inline std::expected<CanMsg, CanError>
 parse_can(uint32_t id, std::span<const uint8_t, 8> data) noexcept {
   switch (id) {
   case EngineData::ID: {
-    auto r = EngineData::parse(id, data);
+    auto r = EngineData::parse(data);
     if (!r)
       return std::unexpected(r.error());
     return CanMsg{std::move(*r)};
   }
   case OtherData::ID: {
-    auto r = OtherData::parse(id, data);
+    auto r = OtherData::parse(data);
     if (!r)
       return std::unexpected(r.error());
     return CanMsg{std::move(*r)};
