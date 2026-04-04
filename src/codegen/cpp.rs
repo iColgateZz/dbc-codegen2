@@ -13,14 +13,17 @@ impl CppGen {
     }
 
     fn includes(out: &mut Generator) {
-        line!(out, "#include <cstdint>");
-        line!(out, "#include <cstddef>");
-        line!(out, "#include <span>");
-        line!(out, "#include <utility>");
-        line!(out, "#include <variant>");
+        const INCLUDES: &[&str] = &[
+            "array", "bit", "cstddef", "cstdint", "cstdio", "cstring", "expected", "span",
+            "variant",
+        ];
+
+        for include in INCLUDES {
+            line!(out, "#include <{}>", include);
+        }
         empty!(out);
     }
-    
+
     fn messages(out: &mut Generator, file: &DbcFile) {
         for message in &file.messages {
             start_block!(out, "struct {}", message.name.0);
