@@ -1,4 +1,4 @@
-use crate::utils::ToUpperCamelCase;
+use heck::ToUpperCamelCase;
 use super::transformation::TransformationNode;
 
 /// Sanitize the names of SignalValueEnum variants.
@@ -14,7 +14,7 @@ impl TransformationNode for SanitizeSignalEnumVariantNames {
                     variant.description = variant
                         .description
                         .replace(sig.name.raw(), "")
-                        .to_upper_camelcase();
+                        .to_upper_camel_case();
                 }
             }
         }

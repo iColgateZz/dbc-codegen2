@@ -1,4 +1,4 @@
-use crate::utils::ToUpperCamelCase;
+use heck::ToUpperCamelCase;
 
 #[derive(Debug, Clone)]
 pub struct Identifier(pub String);
@@ -13,6 +13,6 @@ impl Identifier {
     }
 
     pub fn upper_camel(&self) -> String {
-        self.0.to_upper_camelcase()
+        self.0.to_upper_camel_case()
     }
 }
