@@ -6,6 +6,9 @@ impl CppGen {
     pub fn generate(file: &DbcFile) -> String {
         let mut out = Generator::new();
 
+        line!(out, "#pragma once");
+        empty!(out);
+
         Self::includes(&mut out);
         Self::messages(&mut out, file);
 
