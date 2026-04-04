@@ -60,35 +60,13 @@ enum class EngineMode : uint8_t {
   Sport = 3,
 };
 
-struct EngineModeValue {
-  EngineMode mode;
-  uint8_t raw;
-
-  static constexpr EngineModeValue from_raw(uint8_t v) noexcept {
-    switch (v) {
-    case 0:
-      return {EngineMode::Off, 0};
-    case 1:
-      return {EngineMode::Idle, 1};
-    case 2:
-      return {EngineMode::Drive, 2};
-    case 3:
-      return {EngineMode::Sport, 3};
-    default:
-      return {static_cast<EngineMode>(v), v};
-    }
-  }
-
-  [[nodiscard]] constexpr uint8_t to_raw() const noexcept { return raw; }
-};
-
 struct EngineData {
   static constexpr uint32_t ID = 100u;
   static constexpr std::size_t LEN = 8u;
 
   float rpm;
   float speed;
-  EngineModeValue engine_mode;
+  EngineMode engine_mode;
 
   [[nodiscard]]
   static std::expected<EngineData, CanError>
@@ -102,7 +80,7 @@ struct EngineData {
     return EngineData{
         .rpm = raw_rpm * 0.125f,
         .speed = raw_speed * 0.01f,
-        .engine_mode = EngineModeValue::from_raw(data[4]),
+        .engine_mode = static_cast<EngineMode>(data[4]),
     };
   }
 
@@ -112,7 +90,7 @@ struct EngineData {
 
     detail::write_le<uint16_t>(&buf[0], static_cast<uint16_t>(rpm / 0.125f));
     detail::write_le<uint16_t>(&buf[2], static_cast<uint16_t>(speed / 0.01f));
-    buf[4] = engine_mode.to_raw();
+    buf[4] = static_cast<uint8_t>(engine_mode);
 
     return {ID, buf};
   }
