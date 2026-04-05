@@ -114,9 +114,9 @@ impl CppGen {
     }
 
     fn message(out: &mut Generator, msg: &Message, file: &DbcFile) {
-        let signals = msg.signal_idxs.iter().map(|idx| &file.signals[idx.0]);
-
-        for signal in signals {
+        let signals: Vec<_> = msg.signal_idxs.iter().map(|idx| &file.signals[idx.0]).collect();
+    
+        for signal in &signals {
             if let Some(enum_def) = &signal.signal_value_enum {
                 Self::signal_value_enum(out, signal, enum_def);
             }   
@@ -132,6 +132,16 @@ impl CppGen {
             }
         }
         line!(out, "static constexpr std::size_t LEN = {};", msg.size);
+        empty!(out);
+        
+        for signal in &signals {
+            if let Some(_) = &signal.signal_value_enum {
+                line!(out, "{} {};", signal.name.upper_camel(), signal.name.0.to_snake_case());
+            } else {
+                line!(out, "{} {};", signal.physical_type.as_cpp_type(), signal.name.lower());
+            }   
+        }
+        
         end_block!(out, "");
         empty!(out);
     }
