@@ -15,6 +15,10 @@ pub struct SignalLayout {
     pub offset: f64,
     pub min: f64,
     pub max: f64,
+
+    /// Pre-computed by `ComputeBitvecPositions` transformation node.
+    pub bitvec_start: usize,
+    pub bitvec_end: usize,
 }
 
 impl From<&ParsedSignal> for SignalLayout {
@@ -28,6 +32,8 @@ impl From<&ParsedSignal> for SignalLayout {
             offset: value.offset,
             min: value.min,
             max: value.max,
+            bitvec_start: 0,
+            bitvec_end: 0,
         }
     }
 }

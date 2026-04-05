@@ -2,13 +2,12 @@ use can_dbc::Dbc as ParsedDbc;
 use std::fs;
 
 use crate::codegen;
-use crate::middle_end::nodes::InferSignalTypes;
+use crate::middle_end::nodes::{ComputeBitvecPositions, InferSignalTypes};
 use crate::utils::Language;
 use crate::{
     ir::IRBuilder,
     middle_end::{
-        nodes::SanitizeSignalEnumVariantNames,
-        pipeline::transform_pipeline::TransformationPipeline,
+        nodes::SanitizeSignalEnumVariantNames, pipeline::transform_pipeline::TransformationPipeline,
     },
 };
 
@@ -21,13 +20,14 @@ impl App {
 
         //TODO: give user options to add new nodes/remove nodes
         TransformationPipeline::new()
+            .add(ComputeBitvecPositions)
             .add(SanitizeSignalEnumVariantNames)
             .add(InferSignalTypes)
             .run(&mut dbc);
 
         match language {
             Language::Rust => codegen::rust::RustGen::generate(&dbc),
-            Language::Cpp  => codegen::cpp::CppGen::generate(&dbc),
+            Language::Cpp => codegen::cpp::CppGen::generate(&dbc),
         }
     }
 }

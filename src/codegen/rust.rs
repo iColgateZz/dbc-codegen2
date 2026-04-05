@@ -736,27 +736,8 @@ impl<'a> SignalCtx<'a> {
         }
     }
 
-    //TODO: move the calculations to a transformer node
     fn start_end_bit(&self) -> (usize, usize) {
-        match self.layout.byte_order {
-            ByteOrder::LittleEndian => {
-                let start = self.layout.start_bit as usize;
-                let end = start + self.layout.size as usize;
-                (start, end)
-            }
-
-            ByteOrder::BigEndian => {
-                let start_bit = self.layout.start_bit;
-
-                let x = (start_bit / 8) * 8;
-                let y = 7 - (start_bit % 8);
-
-                let start = (x + y) as usize;
-                let end = start + self.layout.size as usize;
-
-                (start, end)
-            }
-        }
+        (self.layout.bitvec_start, self.layout.bitvec_end)
     }
 
     fn bitvec_order(&self) -> TokenStream {
