@@ -33,6 +33,16 @@ impl RustType for RawType {
     }
 }
 
+impl CppType for RawType {
+    fn as_cpp_type(&self) -> &'static str {
+        match self {
+            RawType::Float32 => "float",
+            RawType::Float64 => "double",
+            RawType::Integer(v) => v.as_cpp_type(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum EnumCoverage {
     Exhaustive,
