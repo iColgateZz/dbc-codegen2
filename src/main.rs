@@ -1,10 +1,9 @@
 use can_dbc::Dbc as ParsedDbc;
 use clap::{Parser, Subcommand};
-use dbc_codegen2::{DbcFile, app::App, ir::IRBuilder, utils::Language};
+use dbc_codegen2::{DbcFile, app::App, codegen::config::CodegenConfig, ir::IRBuilder, utils::Language};
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
-    path::PathBuf,
 };
 
 #[derive(Parser)]
@@ -45,6 +44,9 @@ pub enum Command {
         /// Target language for code generation
         #[arg(short, long, value_enum, default_value = "rust")]
         lang: Language,
+        /// Disable _Other variant for signal value enums
+        #[arg(long, default_value = "false")]
+        no_enum_other: bool,
     },
 }
 
@@ -67,11 +69,15 @@ fn main() {
             }
         }
 
-        Command::Gen { input, output, lang} => {
-            let ext = lang.file_extension();
-            let code = App::convert(&input, lang);
-            let out_path = PathBuf::from(&output).with_extension(ext);
-            fs::write(&out_path, code).expect("Unable to write output file");
+        Command::Gen { input, output, lang, no_enum_other} => {
+            let config = CodegenConfig {
+                input: input,
+                output,
+                lang,
+                no_enum_other,
+            };
+
+            let _ = App::run(config);
         }
     }
 }

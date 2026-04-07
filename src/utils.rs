@@ -1,4 +1,4 @@
-#[derive(clap::ValueEnum, Clone)]
+#[derive(clap::ValueEnum, Clone, Debug)]
 pub enum Language {
     Rust,
     Cpp,
