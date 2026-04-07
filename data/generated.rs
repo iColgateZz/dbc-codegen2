@@ -39,7 +39,6 @@ pub enum DriverHeartbeatCmd {
     Reboot,
     Sync,
     Noop,
-    _Other(u8),
 }
 impl From<u8> for DriverHeartbeatCmd {
     fn from(val: u8) -> Self {
@@ -47,7 +46,7 @@ impl From<u8> for DriverHeartbeatCmd {
             2u8 => DriverHeartbeatCmd::Reboot,
             1u8 => DriverHeartbeatCmd::Sync,
             0u8 => DriverHeartbeatCmd::Noop,
-            _ => DriverHeartbeatCmd::_Other(val),
+            _ => panic!("Invalid enum value"),
         }
     }
 }
@@ -57,7 +56,7 @@ impl From<DriverHeartbeatCmd> for u8 {
             DriverHeartbeatCmd::Reboot => 2u8,
             DriverHeartbeatCmd::Sync => 1u8,
             DriverHeartbeatCmd::Noop => 0u8,
-            DriverHeartbeatCmd::_Other(v) => v,
+            _ => panic!("Invalid enum value"),
         }
     }
 }
@@ -110,14 +109,13 @@ impl CanMessage<{ DriverHeartbeat::LEN }> for DriverHeartbeat {
 pub enum IoDebugTestEnum {
     Two,
     One,
-    _Other(u8),
 }
 impl From<u8> for IoDebugTestEnum {
     fn from(val: u8) -> Self {
         match val {
             2u8 => IoDebugTestEnum::Two,
             1u8 => IoDebugTestEnum::One,
-            _ => IoDebugTestEnum::_Other(val),
+            _ => panic!("Invalid enum value"),
         }
     }
 }
@@ -126,7 +124,7 @@ impl From<IoDebugTestEnum> for u8 {
         match val {
             IoDebugTestEnum::Two => 2u8,
             IoDebugTestEnum::One => 1u8,
-            IoDebugTestEnum::_Other(v) => v,
+            _ => panic!("Invalid enum value"),
         }
     }
 }

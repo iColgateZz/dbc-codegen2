@@ -3,6 +3,7 @@ use quote::{ToTokens, format_ident, quote};
 use syn::File;
 
 use crate::DbcFile;
+use crate::codegen::config::CodegenConfig;
 use crate::ir::message::{Message, MessageId};
 use crate::ir::signal::{MultiplexIndicator, Signal};
 use crate::ir::signal_layout::{SignalLayout, ByteOrder};
@@ -12,7 +13,7 @@ use std::collections::BTreeMap;
 pub struct RustGen;
 
 impl RustGen {
-    pub fn generate(file: &DbcFile) -> String {
+    pub fn generate(file: &DbcFile, config: &CodegenConfig) -> String {
         let imports = quote! {
             use embedded_can::{Frame, Id, StandardId, ExtendedId};
             use bitvec::prelude::*;
@@ -22,7 +23,7 @@ impl RustGen {
         let error_enum = ErrorEnum;
         let msg_trait = MsgTrait;
         let msg_enum = MsgEnum { messages };
-        let message_defs: Vec<_> = messages.iter().map(|m| MessageDef { msg: m, file }).collect();
+        let message_defs: Vec<_> = messages.iter().map(|m| MessageDef { msg: m, file, config: config }).collect();
 
         let tokens = quote! {
             #imports
@@ -115,6 +116,7 @@ impl ToTokens for MsgEnum<'_> {
 struct MessageDef<'a> {
     msg: &'a Message,
     file: &'a DbcFile,
+    config: &'a CodegenConfig,
 }
 
 impl ToTokens for MessageDef<'_> {
@@ -166,7 +168,7 @@ impl MessageDef<'_> {
 
         let value_enums = signals
             .iter()
-            .map(|s| SignalValueEnum { signal: s.signal });
+            .map(|s| SignalValueEnum { signal: s.signal, config: self.config });
         let fields = Self::gen_fields(&signals);
 
         let id_expr = match msg.id {
@@ -278,7 +280,7 @@ impl MessageDef<'_> {
 
         let value_enums = signals
             .iter()
-            .map(|s| SignalValueEnum { signal: s.signal });
+            .map(|s| SignalValueEnum { signal: s.signal, config: self.config });
 
         let id_expr = match msg.id {
             MessageId::Standard(id) => {
@@ -576,6 +578,7 @@ impl MessageDef<'_> {
 
 struct SignalValueEnum<'a> {
     signal: &'a Signal,
+    config: &'a CodegenConfig,
 }
 
 impl ToTokens for SignalValueEnum<'_> {
@@ -595,11 +598,24 @@ impl ToTokens for SignalValueEnum<'_> {
             quote! { #name }
         });
 
+        let other_variant = if !self.config.no_enum_other {
+            quote! { _Other(#rust_type), }
+        } else {
+            quote! {}
+        };
+
         let from_arms = enum_def.variants.iter().map(|vd| {
             let name = format_ident!("{}", vd.description);
             let value = repr_type.literal(vd.value);
             quote! { #value => #enum_name::#name }
         });
+
+        //TODO: is panic the best option?
+        let other_from_arm = if !self.config.no_enum_other {
+            quote! { _ => #enum_name::_Other(val), }
+        } else {
+            quote! { _ => panic!("Invalid enum value"), }
+        };
 
         let into_arms = enum_def.variants.iter().map(|vd| {
             let name = format_ident!("{}", vd.description);
@@ -607,18 +623,24 @@ impl ToTokens for SignalValueEnum<'_> {
             quote! { #enum_name::#name => #value }
         });
 
+        let other_into_arm = if !self.config.no_enum_other {
+            quote! { #enum_name::_Other(v) => v, }
+        } else {
+            quote! { _ => panic!("Invalid enum value"), }
+        };
+
         quote! {
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             pub enum #enum_name {
                 #( #variants, )*
-                _Other(#rust_type),
+                #other_variant
             }
 
             impl From<#rust_type> for #enum_name {
                 fn from(val: #rust_type) -> Self {
                     match val {
                         #( #from_arms, )*
-                        _ => #enum_name::_Other(val),
+                        #other_from_arm
                     }
                 }
             }
@@ -627,7 +649,7 @@ impl ToTokens for SignalValueEnum<'_> {
                 fn from(val: #enum_name) -> Self {
                     match val {
                         #( #into_arms, )*
-                        #enum_name::_Other(v) => v,
+                        #other_into_arm
                     }
                 }
             }
