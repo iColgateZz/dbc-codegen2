@@ -35,17 +35,11 @@ impl App {
         let mut diagnostics = Diagnostics::default();
         CheckPipeline::new()
             .add(CheckZeroZeroRanges {zero_zero_range_allows_all: config.zero_zero_range_allows_all})
-            .run(&mut dbc, &mut diagnostics);
+            .run(&dbc, &mut diagnostics);
 
-        for warning in &diagnostics.warnings {
-            eprintln!("{}", warning.message)
-        }
+        diagnostics.emit();
 
-        for error in &diagnostics.errors {
-            eprintln!("{}", error.message)
-        }
-
-        if !diagnostics.errors.is_empty() {
+        if diagnostics.has_errors() {
             exit(1);
         }
 

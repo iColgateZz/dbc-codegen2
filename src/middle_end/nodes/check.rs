@@ -19,21 +19,42 @@ pub struct Diagnostic {
 
 #[derive(Debug, Default)]
 pub struct Diagnostics {
-    pub errors: Vec<Diagnostic>,
-    pub warnings: Vec<Diagnostic>,
-    pub infos: Vec<Diagnostic>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 impl Diagnostics {
-    pub fn error(&mut self, msg: String) {
-        self.errors.push(Diagnostic { level: DiagnosticLevel::Error, message: msg });
+    pub fn error(&mut self, msg: impl Into<String>) {
+        self.push(DiagnosticLevel::Error, msg);
     }
 
-    pub fn warning(&mut self, msg: String) {
-        self.warnings.push(Diagnostic { level: DiagnosticLevel::Warning, message: msg });
+    pub fn warning(&mut self, msg: impl Into<String>) {
+        self.push(DiagnosticLevel::Warning, msg);
     }
 
-    pub fn info(&mut self, msg: String) {
-        self.infos.push(Diagnostic { level: DiagnosticLevel::Info, message: msg });
+    pub fn info(&mut self, msg: impl Into<String>) {
+        self.push(DiagnosticLevel::Info, msg);
+    }
+
+    fn push(&mut self, level: DiagnosticLevel, msg: impl Into<String>) {
+        self.diagnostics.push(Diagnostic {
+            level,
+            message: msg.into(),
+        });
+    }
+
+    pub fn has_errors(&self) -> bool {
+        self.diagnostics
+            .iter()
+            .any(|d| matches!(d.level, DiagnosticLevel::Error))
+    }
+
+    pub fn emit(&self) {
+        for diag in &self.diagnostics {
+            match diag.level {
+                DiagnosticLevel::Error => eprintln!("error: {}", diag.message),
+                DiagnosticLevel::Warning => eprintln!("warning: {}", diag.message),
+                DiagnosticLevel::Info => eprintln!("info: {}", diag.message),
+            }
+        }
     }
 }
