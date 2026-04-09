@@ -5,6 +5,7 @@ pub mod transformation;
 pub mod sve_deduplicator;
 pub mod sve_name_prefixer;
 pub mod sve_type_attacher;
+pub mod check;
 
 pub use sve_variant_sanitizer::*;
 pub use signal_type_inferer::*;
@@ -13,3 +14,4 @@ pub use transformation::TransformationNode;
 pub use sve_deduplicator::*;
 pub use sve_name_prefixer::*;
 pub use sve_type_attacher::*;
+pub use check::*;
