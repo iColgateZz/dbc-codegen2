@@ -47,6 +47,11 @@ pub enum Command {
         /// Disable _Other variant for signal value enums
         #[arg(long, default_value = "false")]
         no_enum_other: bool,
+        /// Disable signal value enum (SVE) deduplication.
+        /// By default, SVEs with same names & value descriptions
+        /// are treated as one enum.
+        #[arg(long, default_value = "false")]
+        no_enum_dedup: bool,
     },
 }
 
@@ -69,12 +74,19 @@ fn main() {
             }
         }
 
-        Command::Gen { input, output, lang, no_enum_other} => {
+        Command::Gen { 
+            input,
+            output, 
+            lang, 
+            no_enum_other,
+            no_enum_dedup,
+        } => {
             let config = CodegenConfig {
                 input: input,
                 output,
                 lang,
                 no_enum_other,
+                no_enum_dedup,
             };
 
             let _ = App::run(config);

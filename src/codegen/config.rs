@@ -6,4 +6,5 @@ pub struct CodegenConfig {
     pub output: String,
     pub lang: Language,
     pub no_enum_other: bool,
+    pub no_enum_dedup: bool,
 }
