@@ -6,6 +6,7 @@ pub enum CanError {
     UnknownMuxValue,
     InvalidPayloadSize,
     ValueOutOfRange,
+    IvalidEnumValue,
 }
 pub trait CanMessage<const LEN: usize>: Sized {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError>;
@@ -40,14 +41,17 @@ pub enum DriverHeartbeatCmd {
     Sync,
     Noop,
 }
-impl From<u8> for DriverHeartbeatCmd {
-    fn from(val: u8) -> Self {
-        match val {
-            2u8 => DriverHeartbeatCmd::Reboot,
-            1u8 => DriverHeartbeatCmd::Sync,
-            0u8 => DriverHeartbeatCmd::Noop,
-            _ => panic!("Invalid enum value"),
-        }
+impl TryFrom<u8> for DriverHeartbeatCmd {
+    type Error = CanError;
+    fn try_from(val: u8) -> Result<Self, Self::Error> {
+        Ok(
+            match val {
+                2u8 => DriverHeartbeatCmd::Reboot,
+                1u8 => DriverHeartbeatCmd::Sync,
+                0u8 => DriverHeartbeatCmd::Noop,
+                _ => return Err(CanError::IvalidEnumValue),
+            },
+        )
     }
 }
 impl From<DriverHeartbeatCmd> for u8 {
@@ -109,13 +113,16 @@ pub enum IoDebugTestEnum {
     Two,
     One,
 }
-impl From<u8> for IoDebugTestEnum {
-    fn from(val: u8) -> Self {
-        match val {
-            2u8 => IoDebugTestEnum::Two,
-            1u8 => IoDebugTestEnum::One,
-            _ => panic!("Invalid enum value"),
-        }
+impl TryFrom<u8> for IoDebugTestEnum {
+    type Error = CanError;
+    fn try_from(val: u8) -> Result<Self, Self::Error> {
+        Ok(
+            match val {
+                2u8 => IoDebugTestEnum::Two,
+                1u8 => IoDebugTestEnum::One,
+                _ => return Err(CanError::IvalidEnumValue),
+            },
+        )
     }
 }
 impl From<IoDebugTestEnum> for u8 {

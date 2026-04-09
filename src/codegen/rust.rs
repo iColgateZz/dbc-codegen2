@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{TokenStream, Ident};
 use quote::{ToTokens, format_ident, quote};
 use syn::File;
 
@@ -7,7 +7,8 @@ use crate::codegen::config::CodegenConfig;
 use crate::ir::message::{Message, MessageId};
 use crate::ir::signal::{MultiplexIndicator, Signal};
 use crate::ir::signal_layout::{SignalLayout, ByteOrder};
-use crate::ir::signal_value_type::{RustIntegerLiteral, RustType, RustFloatLiteral, IntReprType};
+use crate::ir::signal_value_enum::SignalValueEnum;
+use crate::ir::signal_value_type::{IntReprType, RustFloatLiteral, RustIntegerLiteral, RustType};
 use std::collections::BTreeMap;
 
 pub struct RustGen;
@@ -53,6 +54,7 @@ impl ToTokens for ErrorEnum {
                 UnknownMuxValue,
                 InvalidPayloadSize,
                 ValueOutOfRange,
+                IvalidEnumValue,
             }
         }
         .to_tokens(tokens);
@@ -593,54 +595,41 @@ impl ToTokens for SignalValueEnumCtx<'_> {
         let repr_type = &signal.physical_type;
         let rust_type = format_ident!("{}", repr_type.as_rust_type());
 
-        let variants = enum_def.variants.iter().map(|vd| {
-            let name = format_ident!("{}", vd.description);
-            quote! { #name }
-        });
-
-        let other_variant = if !self.config.no_enum_other {
-            quote! { _Other(#rust_type), }
+        let enum_def_tokens = if !self.config.no_enum_other {
+            self.gen_with_other(&enum_name, &rust_type, enum_def)
         } else {
-            quote! {}
+            self.gen_without_other(&enum_name, &rust_type, enum_def)
         };
 
-        let from_arms = enum_def.variants.iter().map(|vd| {
-            let name = format_ident!("{}", vd.description);
-            let value = repr_type.literal(vd.value);
-            quote! { #value => #enum_name::#name }
-        });
+        enum_def_tokens.to_tokens(tokens);
+    }
+}
 
-        //TODO: is panic the best option?
-        let other_from_arm = if !self.config.no_enum_other {
-            quote! { _ => #enum_name::_Other(val), }
-        } else {
-            quote! { _ => panic!("Invalid enum value"), }
-        };
+impl<'a> SignalValueEnumCtx<'a> {
 
-        let into_arms = enum_def.variants.iter().map(|vd| {
-            let name = format_ident!("{}", vd.description);
-            let value = repr_type.literal(vd.value);
-            quote! { #enum_name::#name => #value }
-        });
+    fn gen_with_other(
+        &self,
+        enum_name: &Ident,
+        rust_type: &Ident,
+        sve: &SignalValueEnum,
+    ) -> TokenStream {
 
-        let other_into_arm = if !self.config.no_enum_other {
-            quote! { #enum_name::_Other(v) => v, }
-        } else {
-            quote! {}
-        };
+        let variants= Self::gen_enum_variants(sve);
+        let from_arms = self.gen_from_arms(sve);
+        let into_arms = self.gen_into_arms(sve);
 
         quote! {
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             pub enum #enum_name {
                 #( #variants, )*
-                #other_variant
+                _Other(#rust_type),
             }
 
             impl From<#rust_type> for #enum_name {
                 fn from(val: #rust_type) -> Self {
                     match val {
                         #( #from_arms, )*
-                        #other_from_arm
+                        _ => #enum_name::_Other(val),
                     }
                 }
             }
@@ -649,18 +638,78 @@ impl ToTokens for SignalValueEnumCtx<'_> {
                 fn from(val: #enum_name) -> Self {
                     match val {
                         #( #into_arms, )*
-                        #other_into_arm
+                        #enum_name::_Other(v) => v,
                     }
                 }
             }
         }
-        .to_tokens(tokens);
     }
-}
 
-impl<'a> SignalValueEnumCtx<'a> {
-    fn gen_enum_variants() {
-        
+    fn gen_without_other(
+        &self,
+        enum_name: &Ident,
+        rust_type: &Ident,
+        sve: &SignalValueEnum,
+    ) -> TokenStream {
+
+        let variants= Self::gen_enum_variants(sve);
+        let from_arms = self.gen_from_arms(sve);
+        let into_arms = self.gen_into_arms(sve);
+
+        quote! {
+            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+            pub enum #enum_name {
+                #( #variants, )*
+            }
+
+            impl TryFrom<#rust_type> for #enum_name {
+                type Error = CanError;
+
+                fn try_from(val: #rust_type) -> Result<Self, Self::Error> {
+                    Ok(match val {
+                        #( #from_arms, )*
+                        _ => return Err(CanError::IvalidEnumValue),
+                    })
+                }
+            }
+
+            impl From<#enum_name> for #rust_type {
+                fn from(val: #enum_name) -> Self {
+                    match val {
+                        #( #into_arms, )*
+                    }
+                }
+            }
+        }
+    }
+
+    fn gen_enum_variants(sve: &SignalValueEnum) -> impl Iterator<Item = TokenStream> {
+        sve.variants.iter().map(|vd| {
+            let name = format_ident!("{}", vd.description);
+            quote! { #name }
+        })
+    }
+
+    fn gen_from_arms(&self, sve: &SignalValueEnum) -> impl Iterator<Item = TokenStream> {
+        let enum_name = format_ident!("{}", self.signal.name.upper_camel());
+        let repr_type = &self.signal.physical_type;
+
+        sve.variants.iter().map(move |vd| {
+            let name = format_ident!("{}", vd.description);
+            let value = repr_type.literal(vd.value);
+            quote! { #value => #enum_name::#name }
+        })
+    }
+
+    fn gen_into_arms(&self, sve: &SignalValueEnum) -> impl Iterator<Item = TokenStream> {
+        let enum_name = format_ident!("{}", self.signal.name.upper_camel());
+        let repr_type = &self.signal.physical_type;
+
+        sve.variants.iter().map(move |vd| {
+            let name = format_ident!("{}", vd.description);
+            let value = repr_type.literal(vd.value);
+            quote! { #enum_name::#name => #value }
+        })
     }
 }
 
