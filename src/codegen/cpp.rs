@@ -231,7 +231,7 @@ impl CppGen {
 
             let is_float = phys_type == "float" || phys_type == "double";
 
-            if signal.signal_value_enum.is_some() {
+            if signal.signal_value_enum_idx.is_some() {
                 let from_fn = format!("{}_from_raw", signal.name.upper_camel().to_snake_case());
                 line!(out, "auto {}_exp = {}({});", field_name, from_fn, raw_name);
                 line!(
@@ -277,7 +277,7 @@ impl CppGen {
             .iter()
             .map(|s| {
                 let f = s.name.0.to_snake_case();
-                if s.signal_value_enum.is_some() {
+                if s.signal_value_enum_idx.is_some() {
                     format!(".{} = *{}_exp", f, f)
                 } else {
                     format!(".{} = {}", f, f)
@@ -298,7 +298,8 @@ impl CppGen {
             .collect();
 
         for signal in &signals {
-            if let Some(enum_def) = &signal.signal_value_enum {
+            if let Some(enum_def_idx) = &signal.signal_value_enum_idx {
+                let enum_def = &file.signal_value_enums[enum_def_idx.0];
                 Self::signal_value_enum(out, signal, enum_def);
             }
         }
@@ -316,7 +317,7 @@ impl CppGen {
         empty!(out);
 
         for signal in &signals {
-            if signal.signal_value_enum.is_some() {
+            if signal.signal_value_enum_idx.is_some() {
                 line!(
                     out,
                     "{} {};",
