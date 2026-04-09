@@ -6,12 +6,14 @@ pub struct SignalValueEnumIdx(pub usize);
 
 #[derive(Debug, Clone)]
 pub struct SignalValueEnum {
+    pub name: String,
     pub variants: Vec<ValueDescription>,
 }
 
 impl SignalValueEnum {
-    pub fn from_parsed(variants: Vec<ParsedValueDescription>) -> Self {
+    pub fn from_parsed(name: String, variants: Vec<ParsedValueDescription>) -> Self {
         Self {
+            name,
             variants: map_into(variants),
         }
     }

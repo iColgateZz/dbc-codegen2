@@ -161,7 +161,7 @@ impl IRBuilder {
                 value_descriptions,
             } = value_enum
             {
-                let sve = SignalValueEnum::from_parsed( value_descriptions);
+                let sve = SignalValueEnum::from_parsed(name.clone(), value_descriptions);
                 value_enum_map.insert((message_id, name), sve);
             }
         }
