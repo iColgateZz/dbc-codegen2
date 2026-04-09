@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::codegen;
 use crate::codegen::config::CodegenConfig;
-use crate::middle_end::nodes::{ComputeBitvecPositions, InferSignalTypes};
+use crate::middle_end::nodes::{AttachSignalValueEnumType, ComputeBitvecPositions, DeduplicateSignalValueEnums, InferSignalTypes, PrefixSignalValueEnumName};
 use crate::utils::Language;
 use crate::{
     ir::IRBuilder,
@@ -25,6 +25,9 @@ impl App {
             .add(ComputeBitvecPositions)
             .add(SanitizeSignalEnumVariantNames)
             .add(InferSignalTypes)
+            .add(DeduplicateSignalValueEnums {dedup_enabled: !config.no_enum_dedup})
+            .add(PrefixSignalValueEnumName {dedup_enabled: !config.no_enum_dedup})
+            .add(AttachSignalValueEnumType)
             .run(&mut dbc);
 
         let code = match config.lang {

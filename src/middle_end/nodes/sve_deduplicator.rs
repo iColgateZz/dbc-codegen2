@@ -9,7 +9,7 @@ use crate::ir::signal_value_enum::SignalValueEnum;
 /// If enabled, performs the deduplication.
 /// Enums with same names and variants are treated as one.
 pub struct DeduplicateSignalValueEnums {
-    pub enabled: bool,
+    pub dedup_enabled: bool,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -33,7 +33,7 @@ impl EnumSignature {
 
 impl TransformationNode for DeduplicateSignalValueEnums {
     fn transform(&self, file: &mut crate::DbcFile) {
-        if !self.enabled {
+        if !self.dedup_enabled {
             return;
         }
 
