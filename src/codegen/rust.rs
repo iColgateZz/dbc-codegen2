@@ -10,6 +10,7 @@ use crate::ir::signal_layout::{SignalLayout, ByteOrder};
 use crate::ir::signal_value_enum::SignalValueEnum;
 use crate::ir::signal_value_type::{IntReprType, RustFloatLiteral, RustIntegerLiteral, RustType};
 use std::collections::BTreeMap;
+use heck::ToUpperCamelCase;
 
 pub struct RustGen;
 
@@ -21,6 +22,10 @@ impl RustGen {
         };
 
         let messages = &file.messages;
+        let value_enums = file
+            .signal_value_enums
+            .iter()
+            .map(|e| SignalValueEnumCtx { enum_def: e, config });
         let error_enum = ErrorEnum;
         let msg_trait = MsgTrait;
         let msg_enum = MsgEnum { messages };
@@ -30,6 +35,8 @@ impl RustGen {
             #imports
 
             #error_enum
+
+            #( #value_enums )*
 
             #msg_trait
 
@@ -168,9 +175,6 @@ impl MessageDef<'_> {
         let name = format_ident!("{}", msg.name.upper_camel());
         let signals: Vec<&SignalCtx> = signals.iter().collect();
 
-        let value_enums = signals
-            .iter()
-            .map(|s| SignalValueEnumCtx { signal: s.signal, config: self.config });
         let fields = Self::gen_fields(&signals);
 
         let id_expr = match msg.id {
@@ -251,8 +255,6 @@ impl MessageDef<'_> {
         };
 
         quote! {
-            #( #value_enums )*
-
             #[derive(Debug, Clone)]
             pub struct #name {
                 #( #fields, )*
@@ -279,10 +281,6 @@ impl MessageDef<'_> {
         let msg = self.msg;
         let name = format_ident!("{}", msg.name.upper_camel());
         let mux_enum_name = format_ident!("{}Mux", name);
-
-        let value_enums = signals
-            .iter()
-            .map(|s| SignalValueEnumCtx { signal: s.signal, config: self.config });
 
         let id_expr = match msg.id {
             MessageId::Standard(id) => {
@@ -485,9 +483,6 @@ impl MessageDef<'_> {
         };
 
         quote! {
-
-            #( #value_enums )*
-
             #( #mux_structs )*
 
             #[derive(Debug, Clone)]
@@ -579,20 +574,16 @@ impl MessageDef<'_> {
 }
 
 struct SignalValueEnumCtx<'a> {
-    signal: &'a Signal,
+    enum_def: &'a SignalValueEnum,
     config: &'a CodegenConfig,
 }
 
 impl ToTokens for SignalValueEnumCtx<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let signal = self.signal;
+        let enum_def = self.enum_def;
 
-        let Some(enum_def) = &signal.signal_value_enum else {
-            return;
-        };
-
-        let enum_name = format_ident!("{}", signal.name.upper_camel());
-        let repr_type = &signal.physical_type;
+        let enum_name = format_ident!("{}", self.enum_def.name.to_upper_camel_case());
+        let repr_type = &enum_def.phys_type;
         let rust_type = format_ident!("{}", repr_type.as_rust_type());
 
         let enum_def_tokens = if !self.config.no_enum_other {
@@ -691,8 +682,8 @@ impl<'a> SignalValueEnumCtx<'a> {
     }
 
     fn gen_from_arms(&self, sve: &SignalValueEnum) -> impl Iterator<Item = TokenStream> {
-        let enum_name = format_ident!("{}", self.signal.name.upper_camel());
-        let repr_type = &self.signal.physical_type;
+        let enum_name = format_ident!("{}", self.enum_def.name.to_upper_camel_case());
+        let repr_type = &self.enum_def.phys_type;
 
         sve.variants.iter().map(move |vd| {
             let name = format_ident!("{}", vd.description);
@@ -702,8 +693,8 @@ impl<'a> SignalValueEnumCtx<'a> {
     }
 
     fn gen_into_arms(&self, sve: &SignalValueEnum) -> impl Iterator<Item = TokenStream> {
-        let enum_name = format_ident!("{}", self.signal.name.upper_camel());
-        let repr_type = &self.signal.physical_type;
+        let enum_name = format_ident!("{}", self.enum_def.name.to_upper_camel_case());
+        let repr_type = &self.enum_def.phys_type;
 
         sve.variants.iter().map(move |vd| {
             let name = format_ident!("{}", vd.description);
@@ -716,13 +707,19 @@ impl<'a> SignalValueEnumCtx<'a> {
 struct SignalCtx<'a> {
     signal: &'a Signal,
     layout: &'a SignalLayout,
+    sve: Option<&'a SignalValueEnum>,
 }
 
 impl<'a> SignalCtx<'a> {
     fn new(signal: &'a Signal, file: &'a DbcFile) -> Self {
+        let sve = signal
+            .signal_value_enum_idx
+            .map(|idx| &file.signal_value_enums[idx.0]);
+
         Self {
             signal,
             layout: &file.signal_layouts[signal.layout.0],
+            sve,
         }
     }
 
@@ -739,11 +736,12 @@ impl<'a> SignalCtx<'a> {
     }
 
     fn enum_ident(&self) -> syn::Ident {
-        format_ident!("{}", self.signal.name.upper_camel())
+        let sve = self.sve.expect("enum_ident called without enum");
+        format_ident!("{}", sve.name)
     }
 
     fn rust_type(&self) -> syn::Ident {
-        if self.signal.signal_value_enum.is_some() {
+        if self.sve.is_some() {
             self.enum_ident()
         } else {
             format_ident!("{}", self.signal.physical_type.as_rust_type())
@@ -755,7 +753,7 @@ impl<'a> SignalCtx<'a> {
     }
 
     fn is_enum(&self) -> bool {
-        self.signal.signal_value_enum.is_some()
+        self.signal.signal_value_enum_idx.is_some()
     }
 
     fn is_float(&self) -> bool {
