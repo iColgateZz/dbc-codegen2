@@ -43,13 +43,13 @@ impl CppType for RawType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum EnumCoverage {
     Exhaustive,
     Partial,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum PhysicalType {
     Float32,
     Float64,
