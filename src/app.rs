@@ -1,10 +1,12 @@
 use can_dbc::Dbc as ParsedDbc;
 use std::fs;
 use std::path::PathBuf;
+use std::process::exit;
 
 use crate::codegen;
 use crate::codegen::config::CodegenConfig;
-use crate::middle_end::nodes::{AttachSignalValueEnumType, ComputeBitvecPositions, DeduplicateSignalValueEnums, InferSignalTypes, PrefixSignalValueEnumName};
+use crate::middle_end::nodes::{AttachSignalValueEnumType, CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics, InferSignalTypes, PrefixSignalValueEnumName};
+use crate::middle_end::pipeline::check_pipeline::CheckPipeline;
 use crate::utils::Language;
 use crate::{
     ir::IRBuilder,
@@ -29,6 +31,23 @@ impl App {
             .add(PrefixSignalValueEnumName {dedup_enabled: !config.no_enum_dedup})
             .add(AttachSignalValueEnumType)
             .run(&mut dbc);
+
+        let mut diagnostics = Diagnostics::default();
+        CheckPipeline::new()
+            .add(CheckZeroZeroRanges {zero_zero_range_allows_all: config.zero_zero_range_allows_all})
+            .run(&mut dbc, &mut diagnostics);
+
+        for warning in &diagnostics.warnings {
+            eprintln!("{}", warning.message)
+        }
+
+        for error in &diagnostics.errors {
+            eprintln!("{}", error.message)
+        }
+
+        if !diagnostics.errors.is_empty() {
+            exit(1);
+        }
 
         let code = match config.lang {
             Language::Rust => codegen::rust::RustGen::generate(&dbc, &config),

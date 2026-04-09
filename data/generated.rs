@@ -8,6 +8,57 @@ pub enum CanError {
     ValueOutOfRange,
     IvalidEnumValue,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DriverHeartbeatCmd {
+    Reboot,
+    Sync,
+    Noop,
+    _Other(u8),
+}
+impl From<u8> for DriverHeartbeatCmd {
+    fn from(val: u8) -> Self {
+        match val {
+            2u8 => DriverHeartbeatCmd::Reboot,
+            1u8 => DriverHeartbeatCmd::Sync,
+            0u8 => DriverHeartbeatCmd::Noop,
+            _ => DriverHeartbeatCmd::_Other(val),
+        }
+    }
+}
+impl From<DriverHeartbeatCmd> for u8 {
+    fn from(val: DriverHeartbeatCmd) -> Self {
+        match val {
+            DriverHeartbeatCmd::Reboot => 2u8,
+            DriverHeartbeatCmd::Sync => 1u8,
+            DriverHeartbeatCmd::Noop => 0u8,
+            DriverHeartbeatCmd::_Other(v) => v,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IoDebugTestEnum {
+    Two,
+    One,
+    _Other(u8),
+}
+impl From<u8> for IoDebugTestEnum {
+    fn from(val: u8) -> Self {
+        match val {
+            2u8 => IoDebugTestEnum::Two,
+            1u8 => IoDebugTestEnum::One,
+            _ => IoDebugTestEnum::_Other(val),
+        }
+    }
+}
+impl From<IoDebugTestEnum> for u8 {
+    fn from(val: IoDebugTestEnum) -> Self {
+        match val {
+            IoDebugTestEnum::Two => 2u8,
+            IoDebugTestEnum::One => 1u8,
+            IoDebugTestEnum::_Other(v) => v,
+        }
+    }
+}
 pub trait CanMessage<const LEN: usize>: Sized {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError>;
     fn encode(&self) -> [u8; LEN];
@@ -33,34 +84,6 @@ impl Msg {
             _ => return Err(CanError::UnknownFrameId),
         };
         Ok(result)
-    }
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DriverHeartbeatCmd {
-    Reboot,
-    Sync,
-    Noop,
-}
-impl TryFrom<u8> for DriverHeartbeatCmd {
-    type Error = CanError;
-    fn try_from(val: u8) -> Result<Self, Self::Error> {
-        Ok(
-            match val {
-                2u8 => DriverHeartbeatCmd::Reboot,
-                1u8 => DriverHeartbeatCmd::Sync,
-                0u8 => DriverHeartbeatCmd::Noop,
-                _ => return Err(CanError::IvalidEnumValue),
-            },
-        )
-    }
-}
-impl From<DriverHeartbeatCmd> for u8 {
-    fn from(val: DriverHeartbeatCmd) -> Self {
-        match val {
-            DriverHeartbeatCmd::Reboot => 2u8,
-            DriverHeartbeatCmd::Sync => 1u8,
-            DriverHeartbeatCmd::Noop => 0u8,
-        }
     }
 }
 #[derive(Debug, Clone)]
@@ -106,31 +129,6 @@ impl CanMessage<{ DriverHeartbeat::LEN }> for DriverHeartbeat {
         data.view_bits_mut::<Lsb0>()[0usize..8usize]
             .store_le(u8::from(self.driver_heartbeat_cmd));
         data
-    }
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IoDebugTestEnum {
-    Two,
-    One,
-}
-impl TryFrom<u8> for IoDebugTestEnum {
-    type Error = CanError;
-    fn try_from(val: u8) -> Result<Self, Self::Error> {
-        Ok(
-            match val {
-                2u8 => IoDebugTestEnum::Two,
-                1u8 => IoDebugTestEnum::One,
-                _ => return Err(CanError::IvalidEnumValue),
-            },
-        )
-    }
-}
-impl From<IoDebugTestEnum> for u8 {
-    fn from(val: IoDebugTestEnum) -> Self {
-        match val {
-            IoDebugTestEnum::Two => 2u8,
-            IoDebugTestEnum::One => 1u8,
-        }
     }
 }
 #[derive(Debug, Clone)]

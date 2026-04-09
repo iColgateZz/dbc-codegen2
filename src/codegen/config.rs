@@ -7,4 +7,5 @@ pub struct CodegenConfig {
     pub lang: Language,
     pub no_enum_other: bool,
     pub no_enum_dedup: bool,
+    pub zero_zero_range_allows_all: bool,
 }

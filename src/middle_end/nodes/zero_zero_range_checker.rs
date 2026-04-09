@@ -15,7 +15,7 @@ impl CheckNode for CheckZeroZeroRanges {
 
             if layout.min == layout.max && layout.max == 0.0 {
                 let name = sig.name.raw();
-                let msg = format!("Signal '{name}' has [0|0] range. Are you sure it is correct?\nConsider using '--zero-zero-range-allows-all' flag");
+                let msg = format!("Signal '{name}' has [0|0] range. This usually means the vendor did not specify limits.\nConsider using '--zero-zero-range-allows-all' flag");
                 diagnostics.warning(msg);
             }
         }
