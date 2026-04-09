@@ -9,7 +9,8 @@ pub struct SanitizeSignalEnumVariantNames;
 impl TransformationNode for SanitizeSignalEnumVariantNames {
     fn transform(&self, file: &mut crate::DbcFile) {
         for sig in &mut file.signals {
-            if let Some(sve) = &mut sig.signal_value_enum {
+            if let Some(sve_idx) = &mut sig.signal_value_enum_idx {
+                let sve = &mut file.signal_value_enums[sve_idx.0];
                 for variant in &mut sve.variants {
                     variant.description = variant
                         .description
