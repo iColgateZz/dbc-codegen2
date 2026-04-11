@@ -296,13 +296,13 @@ struct SensorSonars {
        {
         auto inner = SensorSonarsMux0::decode_from(data.data());
         if (!inner) return std::unexpected(inner.error());
-        return SensorSonars{ .sensor_sonars_err_count = sensor_sonars_err_count, .mux = *inner };
+        return SensorSonars{ .sensor_sonars_err_count = sensor_sonars_err_count, .mux = std::move(*inner) };
       };
       case 1:
        {
         auto inner = SensorSonarsMux1::decode_from(data.data());
         if (!inner) return std::unexpected(inner.error());
-        return SensorSonars{ .sensor_sonars_err_count = sensor_sonars_err_count, .mux = *inner };
+        return SensorSonars{ .sensor_sonars_err_count = sensor_sonars_err_count, .mux = std::move(*inner) };
       };
       default: return std::unexpected(CanError::InvalidData);
     };

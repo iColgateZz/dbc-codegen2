@@ -3,13 +3,17 @@ use std::collections::BTreeMap;
 use heck::ToSnakeCase;
 
 use crate::{
-    DbcFile, codegen::Generator, empty, end_block, end_block_no_close, ir::{
+    DbcFile,
+    codegen::Generator,
+    empty, end_block, end_block_no_close,
+    ir::{
         message::{Message, MessageId, MessageSignalClassification},
         signal::Signal,
         signal_layout::ByteOrder,
         signal_value_enum::SignalValueEnum,
         signal_value_type::{CppType, RawType},
-    }, line, start_block
+    },
+    line, start_block,
 };
 
 pub struct CppGen;
@@ -43,10 +47,7 @@ impl CppGen {
     }
 
     fn includes(out: &mut Generator) {
-        const INCLUDES: &[&str] = &[
-            "array", "cstddef", "cstdint", "expected", "span",
-            "variant",
-        ];
+        const INCLUDES: &[&str] = &["array", "cstddef", "cstdint", "expected", "span", "variant"];
 
         for include in INCLUDES {
             line!(out, "#include <{}>", include);
@@ -83,10 +84,7 @@ impl CppGen {
         end_block!(out, "");
         start_block!(out, "if constexpr (std::is_signed_v<T>)");
         line!(out, "if (len == 0) return T(0);");
-        start_block!(
-            out,
-            "if (len < sizeof(U) * 8)"
-        );
+        start_block!(out, "if (len < sizeof(U) * 8)");
         line!(out, "const U sign_bit = static_cast<U>(U(1) << (len - 1));");
         start_block!(out, "if (result & sign_bit)");
         end_block!(out, "result |= static_cast<U>(~U(0) << len);");
@@ -170,10 +168,7 @@ impl CppGen {
         end_block!(out, "");
         start_block!(out, "if constexpr (std::is_signed_v<T>)");
         line!(out, "if (len == 0) return T(0);");
-        start_block!(
-            out,
-            "if (len < sizeof(U) * 8)"
-        );
+        start_block!(out, "if (len < sizeof(U) * 8)");
         line!(out, "const U sign_bit = static_cast<U>(U(1) << (len - 1));");
         start_block!(out, "if (result & sign_bit)");
         end_block!(out, "result |= static_cast<U>(~U(0) << len);");
@@ -608,6 +603,13 @@ impl CppGen {
             mux_layout.bitvec_end
         );
 
+        let plain_fields = Self::field_inits_str(plain);
+        let plain_prefix = if plain_fields.is_empty() {
+            String::new()
+        } else {
+            format!("{}, ", plain_fields)
+        };
+
         start_block!(out, "switch (mux_raw)");
         for (mux_value, _) in muxed {
             let variant_struct = format!("{}Mux{}", msg_name, mux_value);
@@ -619,15 +621,9 @@ impl CppGen {
                 variant_struct
             );
             line!(out, "if (!inner) return std::unexpected(inner.error());");
-            let plain_fields = Self::field_inits_str(plain);
-            let plain_prefix = if plain_fields.is_empty() {
-                String::new()
-            } else {
-                format!("{}, ", plain_fields)
-            };
             line!(
                 out,
-                "return {}{{ {}.mux = *inner }};",
+                "return {}{{ {}.mux = std::move(*inner) }};",
                 msg_name,
                 plain_prefix,
             );
