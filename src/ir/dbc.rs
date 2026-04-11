@@ -8,13 +8,6 @@ pub struct DbcFile {
     pub signals: Vec<Signal>,
     pub signal_layouts: Vec<SignalLayout>,
     pub signal_value_enums: Vec<SignalValueEnum>,
-    //TODO: split signal into SignalLayout and SignalInstance
-    //      All core fields -> Layout
-    //      Instance has layout idx, name, receivers
-    //      Messages hold SignalInstanceIdx, also add MessageLayout
-    //      Later, in one of the passes all MessageLayouts are determined
-    //      Something like this should work
-
     //TODO: consider how to use can_dbc::value_tables. Basically,
     //      these are global enums for signal values
 
