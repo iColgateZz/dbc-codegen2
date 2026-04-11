@@ -33,6 +33,8 @@ impl CppGen {
             Self::message(&mut out, message, file);
         }
 
+        Self::parse_can(&mut out, &file.messages);
+
         out.into_string()
     }
 
@@ -503,5 +505,48 @@ impl CppGen {
                 empty!(out);
             }
         }
+    }
+
+    fn parse_can(out: &mut Generator, messages: &[Message]) {
+        let variant_types = messages
+            .iter()
+            .map(|m| m.name.upper_camel())
+            .collect::<Vec<_>>()
+            .join(", ");
+        line!(out, "using CanMsg = std::variant<{}>;", variant_types);
+        empty!(out);
+
+        line!(out, "[[nodiscard]]");
+        line!(out, "inline std::expected<CanMsg, CanError>");
+        start_block!(
+            out,
+            "parse_can(uint32_t id, std::span<const uint8_t> data) noexcept"
+        );
+
+        start_block!(out, "switch (id)");
+
+        for msg in messages {
+            let name = msg.name.upper_camel();
+            line!(out, "case {}::ID:", name);
+            start_block!(out, "");
+            line!(
+                out,
+                "if (data.size() < {}::LEN) return std::unexpected(CanError::InvalidLength);",
+                name
+            );
+            line!(
+                out,
+                "auto r = {}::parse(std::span<const uint8_t, {}::LEN>(data.data(), {}::LEN));",
+                name,
+                name,
+                name
+            );
+            line!(out, "if (!r) return std::unexpected(r.error());");
+            line!(out, "return CanMsg{{std::move(*r)}};");
+            end_block!(out, "");
+        }
+
+        end_block!(out, "default: return std::unexpected(CanError::UnknownId);");
+        end_block!(out, "");
     }
 }

@@ -264,3 +264,47 @@ struct SensorSonars {
   
 };
 
+using CanMsg = std::variant<DriverHeartbeat, IoDebug, MotorCmd, MotorStatus, SensorSonars>;
+
+[[nodiscard]]
+inline std::expected<CanMsg, CanError>
+parse_can(uint32_t id, std::span<const uint8_t> data) noexcept {
+  switch (id) {
+    case DriverHeartbeat::ID:
+     {
+      if (data.size() < DriverHeartbeat::LEN) return std::unexpected(CanError::InvalidLength);
+      auto r = DriverHeartbeat::parse(std::span<const uint8_t, DriverHeartbeat::LEN>(data.data(), DriverHeartbeat::LEN));
+      if (!r) return std::unexpected(r.error());
+      return CanMsg{std::move(*r)};
+    };
+    case IoDebug::ID:
+     {
+      if (data.size() < IoDebug::LEN) return std::unexpected(CanError::InvalidLength);
+      auto r = IoDebug::parse(std::span<const uint8_t, IoDebug::LEN>(data.data(), IoDebug::LEN));
+      if (!r) return std::unexpected(r.error());
+      return CanMsg{std::move(*r)};
+    };
+    case MotorCmd::ID:
+     {
+      if (data.size() < MotorCmd::LEN) return std::unexpected(CanError::InvalidLength);
+      auto r = MotorCmd::parse(std::span<const uint8_t, MotorCmd::LEN>(data.data(), MotorCmd::LEN));
+      if (!r) return std::unexpected(r.error());
+      return CanMsg{std::move(*r)};
+    };
+    case MotorStatus::ID:
+     {
+      if (data.size() < MotorStatus::LEN) return std::unexpected(CanError::InvalidLength);
+      auto r = MotorStatus::parse(std::span<const uint8_t, MotorStatus::LEN>(data.data(), MotorStatus::LEN));
+      if (!r) return std::unexpected(r.error());
+      return CanMsg{std::move(*r)};
+    };
+    case SensorSonars::ID:
+     {
+      if (data.size() < SensorSonars::LEN) return std::unexpected(CanError::InvalidLength);
+      auto r = SensorSonars::parse(std::span<const uint8_t, SensorSonars::LEN>(data.data(), SensorSonars::LEN));
+      if (!r) return std::unexpected(r.error());
+      return CanMsg{std::move(*r)};
+    };
+    default: return std::unexpected(CanError::UnknownId);
+  };
+};
