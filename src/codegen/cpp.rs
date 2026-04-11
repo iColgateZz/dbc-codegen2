@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use heck::ToSnakeCase;
 
 use crate::{
@@ -5,7 +7,7 @@ use crate::{
     codegen::Generator,
     empty, end_block,
     ir::{
-        message::{Message, MessageId},
+        message::{Message, MessageId, MessageSignalClassification},
         signal::Signal,
         signal_layout::ByteOrder,
         signal_value_enum::SignalValueEnum,
@@ -195,23 +197,18 @@ impl CppGen {
         empty!(out);
     }
 
-    fn parse_message(out: &mut Generator, msg: &Message, signals: &Vec<&Signal>, file: &DbcFile) {
-        line!(
-            out,
-            "[[nodiscard]] static std::expected<{}, CanError>",
-            msg.name.upper_camel()
-        );
-        start_block!(out, "parse(std::span<const uint8_t, LEN> data) noexcept");
-
+    fn emit_signal_reads(
+        out: &mut Generator,
+        signals: &[&Signal],
+        file: &DbcFile,
+        data_expr: &str,
+    ) {
         for signal in signals {
             let layout = &file.signal_layouts[signal.layout.0];
-            let bitvec_start = layout.bitvec_start;
-            let bitvec_end = layout.bitvec_end;
             let raw_type = signal.raw_type.as_cpp_type();
             let phys_type = signal.physical_type.as_cpp_type();
             let field_name = signal.name.0.to_snake_case();
             let raw_name = format!("raw_{}", field_name);
-
             let extract_fn = match layout.byte_order {
                 ByteOrder::LittleEndian => "extract_le",
                 ByteOrder::BigEndian => "extract_be",
@@ -224,9 +221,9 @@ impl CppGen {
                 raw_name,
                 extract_fn,
                 raw_type,
-                "data.data()",
-                bitvec_start,
-                bitvec_end
+                data_expr,
+                layout.bitvec_start,
+                layout.bitvec_end
             );
 
             let is_float = phys_type == "float" || phys_type == "double";
@@ -257,8 +254,6 @@ impl CppGen {
                     offset_str
                 );
             } else {
-                let factor = layout.factor as i64;
-                let offset = layout.offset as i64;
                 line!(
                     out,
                     "const {} {} = static_cast<{}>({}) * {} + {};",
@@ -266,14 +261,15 @@ impl CppGen {
                     field_name,
                     phys_type,
                     raw_name,
-                    factor,
-                    offset
+                    layout.factor as i64,
+                    layout.offset as i64
                 );
             }
         }
+    }
 
-        let struct_name = msg.name.upper_camel();
-        let field_inits: Vec<String> = signals
+    fn field_inits_str(signals: &[&Signal]) -> String {
+        signals
             .iter()
             .map(|s| {
                 let f = s.name.0.to_snake_case();
@@ -283,40 +279,12 @@ impl CppGen {
                     format!(".{} = {}", f, f)
                 }
             })
-            .collect();
-
-        let fields_str = field_inits.join(", ");
-        end_block!(out, "return {}{{ {} }};", struct_name, fields_str);
-        empty!(out);
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
-    fn message(out: &mut Generator, msg: &Message, file: &DbcFile) {
-        let signals: Vec<_> = msg
-            .signal_idxs
-            .iter()
-            .map(|idx| &file.signals[idx.0])
-            .collect();
-
-        for signal in &signals {
-            if let Some(enum_def_idx) = &signal.signal_value_enum_idx {
-                let enum_def = &file.signal_value_enums[enum_def_idx.0];
-                Self::signal_value_enum(out, signal, enum_def);
-            }
-        }
-
-        start_block!(out, "struct {}", msg.name.upper_camel());
-        match msg.id {
-            MessageId::Standard(id) => {
-                line!(out, "static constexpr uint16_t ID = {};", id);
-            }
-            MessageId::Extended(id) => {
-                line!(out, "static constexpr uint32_t ID = {};", id);
-            }
-        }
-        line!(out, "static constexpr std::size_t LEN = {};", msg.size);
-        empty!(out);
-
-        for signal in &signals {
+    fn emit_signal_fields(out: &mut Generator, signals: &[&Signal]) {
+        for signal in signals {
             if signal.signal_value_enum_idx.is_some() {
                 line!(
                     out,
@@ -333,11 +301,207 @@ impl CppGen {
                 );
             }
         }
+    }
+
+    fn parse_message(out: &mut Generator, msg: &Message, signals: &[&Signal], file: &DbcFile) {
+        line!(
+            out,
+            "[[nodiscard]] static std::expected<{}, CanError>",
+            msg.name.upper_camel()
+        );
+        start_block!(out, "parse(std::span<const uint8_t, LEN> data) noexcept");
+
+        Self::emit_signal_reads(out, signals, file, "data.data()");
+
+        let fields_str = Self::field_inits_str(signals);
+        end_block!(
+            out,
+            "return {}{{ {} }};",
+            msg.name.upper_camel(),
+            fields_str
+        );
+        empty!(out);
+    }
+
+    fn mux_variant_struct(
+        out: &mut Generator,
+        msg: &Message,
+        mux_value: u64,
+        signals: &[&Signal],
+        file: &DbcFile,
+    ) {
+        let struct_name = format!("{}Mux{}", msg.name.upper_camel(), mux_value);
+
+        start_block!(out, "struct {}", struct_name);
+
+        Self::emit_signal_fields(out, signals);
         empty!(out);
 
-        Self::parse_message(out, msg, &signals, file);
+        line!(
+            out,
+            "[[nodiscard]] static std::expected<{}, CanError>",
+            struct_name
+        );
+        start_block!(out, "decode_from(const uint8_t* data) noexcept");
+        Self::emit_signal_reads(out, signals, file, "data");
+        let fields_str = Self::field_inits_str(signals);
+        end_block!(out, "return {}{{ {} }};", struct_name, fields_str);
+        empty!(out);
 
         end_block!(out, "");
         empty!(out);
+    }
+
+    fn parse_mux_message(
+        out: &mut Generator,
+        msg: &Message,
+        plain: &[&Signal],
+        mux_signal: &Signal,
+        muxed: &BTreeMap<u64, Vec<&Signal>>,
+        file: &DbcFile,
+    ) {
+        let msg_name = msg.name.upper_camel();
+        let mux_enum_name = format!("{}Mux", msg_name);
+
+        line!(
+            out,
+            "[[nodiscard]] static std::expected<{}, CanError>",
+            msg_name
+        );
+        start_block!(out, "parse(std::span<const uint8_t, LEN> data) noexcept");
+
+        Self::emit_signal_reads(out, plain, file, "data.data()");
+
+        let mux_layout = &file.signal_layouts[mux_signal.layout.0];
+        let mux_raw_type = mux_signal.raw_type.as_cpp_type();
+        let mux_extract_fn = match mux_layout.byte_order {
+            ByteOrder::LittleEndian => "extract_le",
+            ByteOrder::BigEndian => "extract_be",
+        };
+        line!(
+            out,
+            "const {} mux_raw = detail::{}<{}>({}, {}, {});",
+            mux_raw_type,
+            mux_extract_fn,
+            mux_raw_type,
+            "data.data()",
+            mux_layout.bitvec_start,
+            mux_layout.bitvec_end
+        );
+
+        start_block!(out, "switch (mux_raw)");
+        for (mux_value, _) in muxed {
+            let variant_struct = format!("{}Mux{}", msg_name, mux_value);
+            let variant_name = format!("V{}", mux_value);
+            line!(out, "case {}:", mux_value);
+            start_block!(out, "");
+            line!(
+                out,
+                "auto inner = {}::decode_from(data.data());",
+                variant_struct
+            );
+            line!(out, "if (!inner) return std::unexpected(inner.error());");
+            let plain_fields = Self::field_inits_str(plain);
+            let plain_prefix = if plain_fields.is_empty() {
+                String::new()
+            } else {
+                format!("{}, ", plain_fields)
+            };
+            line!(
+                out,
+                "return {}{{ {}.mux = *inner }};",
+                msg_name,
+                plain_prefix,
+            );
+            end_block!(out, "");
+        }
+        end_block!(
+            out,
+            "default: return std::unexpected(CanError::InvalidData);"
+        );
+
+        end_block!(out, "");
+        empty!(out);
+    }
+
+    fn message(out: &mut Generator, msg: &Message, file: &DbcFile) {
+        let all_signals: Vec<&Signal> = msg
+            .signal_idxs
+            .iter()
+            .map(|idx| &file.signals[idx.0])
+            .collect();
+
+        for signal in &all_signals {
+            if let Some(idx) = &signal.signal_value_enum_idx {
+                Self::signal_value_enum(out, signal, &file.signal_value_enums[idx.0]);
+            }
+        }
+
+        match msg.classify_signals(&file.signals) {
+            MessageSignalClassification::Plain { signals } => {
+                let sigs: Vec<&Signal> = signals.iter().map(|idx| &file.signals[idx.0]).collect();
+
+                start_block!(out, "struct {}", msg.name.upper_camel());
+                match msg.id {
+                    MessageId::Standard(id) => line!(out, "static constexpr uint16_t ID = {};", id),
+                    MessageId::Extended(id) => line!(out, "static constexpr uint32_t ID = {};", id),
+                }
+                line!(out, "static constexpr std::size_t LEN = {};", msg.size);
+                empty!(out);
+                Self::emit_signal_fields(out, &sigs);
+                empty!(out);
+                Self::parse_message(out, msg, &sigs, file);
+                end_block!(out, "");
+                empty!(out);
+            }
+
+            MessageSignalClassification::Multiplexed {
+                plain,
+                mux_signal: mux_idx,
+                muxed,
+            } => {
+                let plain_sigs: Vec<&Signal> =
+                    plain.iter().map(|idx| &file.signals[idx.0]).collect();
+                let mux_sig = &file.signals[mux_idx.0];
+                let muxed_sigs: BTreeMap<u64, Vec<&Signal>> = muxed
+                    .iter()
+                    .map(|(v, idxs)| (*v, idxs.iter().map(|idx| &file.signals[idx.0]).collect()))
+                    .collect();
+
+                let msg_name = msg.name.upper_camel();
+                let mux_enum_name = format!("{}Mux", msg_name);
+
+                for (mux_value, sigs) in &muxed_sigs {
+                    Self::mux_variant_struct(out, msg, *mux_value, sigs, file);
+                }
+
+                let variant_types = muxed_sigs
+                    .keys()
+                    .map(|v| format!("{}Mux{}", msg_name, v))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                line!(
+                    out,
+                    "using {} = std::variant<{}>;",
+                    mux_enum_name,
+                    variant_types
+                );
+                empty!(out);
+
+                start_block!(out, "struct {}", msg_name);
+                match msg.id {
+                    MessageId::Standard(id) => line!(out, "static constexpr uint16_t ID = {};", id),
+                    MessageId::Extended(id) => line!(out, "static constexpr uint32_t ID = {};", id),
+                }
+                line!(out, "static constexpr std::size_t LEN = {};", msg.size);
+                empty!(out);
+                Self::emit_signal_fields(out, &plain_sigs);
+                line!(out, "{} mux;", mux_enum_name);
+                empty!(out);
+                Self::parse_mux_message(out, msg, &plain_sigs, mux_sig, &muxed_sigs, file);
+                end_block!(out, "");
+                empty!(out);
+            }
+        }
     }
 }

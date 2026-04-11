@@ -189,44 +189,77 @@ struct MotorStatus {
   
 };
 
-struct SensorSonars {
-  static constexpr uint16_t ID = 200;
-  static constexpr std::size_t LEN = 8;
-  
-  uint8_t sensor_sonars_mux;
-  uint16_t sensor_sonars_err_count;
+struct SensorSonarsMux0 {
   double sensor_sonars_left;
   double sensor_sonars_middle;
   double sensor_sonars_right;
   double sensor_sonars_rear;
+  
+  [[nodiscard]] static std::expected<SensorSonarsMux0, CanError>
+  decode_from(const uint8_t* data) noexcept {
+    const uint16_t raw_sensor_sonars_left = detail::extract_le<uint16_t>(data, 16, 28);
+    const double sensor_sonars_left = static_cast<double>(raw_sensor_sonars_left) * 0.1 + 0;
+    const uint16_t raw_sensor_sonars_middle = detail::extract_le<uint16_t>(data, 28, 40);
+    const double sensor_sonars_middle = static_cast<double>(raw_sensor_sonars_middle) * 0.1 + 0;
+    const uint16_t raw_sensor_sonars_right = detail::extract_le<uint16_t>(data, 40, 52);
+    const double sensor_sonars_right = static_cast<double>(raw_sensor_sonars_right) * 0.1 + 0;
+    const uint16_t raw_sensor_sonars_rear = detail::extract_le<uint16_t>(data, 52, 64);
+    const double sensor_sonars_rear = static_cast<double>(raw_sensor_sonars_rear) * 0.1 + 0;
+    return SensorSonarsMux0{ .sensor_sonars_left = sensor_sonars_left, .sensor_sonars_middle = sensor_sonars_middle, .sensor_sonars_right = sensor_sonars_right, .sensor_sonars_rear = sensor_sonars_rear };
+  };
+  
+};
+
+struct SensorSonarsMux1 {
   double sensor_sonars_no_filt_left;
   double sensor_sonars_no_filt_middle;
   double sensor_sonars_no_filt_right;
   double sensor_sonars_no_filt_rear;
   
+  [[nodiscard]] static std::expected<SensorSonarsMux1, CanError>
+  decode_from(const uint8_t* data) noexcept {
+    const uint16_t raw_sensor_sonars_no_filt_left = detail::extract_le<uint16_t>(data, 16, 28);
+    const double sensor_sonars_no_filt_left = static_cast<double>(raw_sensor_sonars_no_filt_left) * 0.1 + 0;
+    const uint16_t raw_sensor_sonars_no_filt_middle = detail::extract_le<uint16_t>(data, 28, 40);
+    const double sensor_sonars_no_filt_middle = static_cast<double>(raw_sensor_sonars_no_filt_middle) * 0.1 + 0;
+    const uint16_t raw_sensor_sonars_no_filt_right = detail::extract_le<uint16_t>(data, 40, 52);
+    const double sensor_sonars_no_filt_right = static_cast<double>(raw_sensor_sonars_no_filt_right) * 0.1 + 0;
+    const uint16_t raw_sensor_sonars_no_filt_rear = detail::extract_le<uint16_t>(data, 52, 64);
+    const double sensor_sonars_no_filt_rear = static_cast<double>(raw_sensor_sonars_no_filt_rear) * 0.1 + 0;
+    return SensorSonarsMux1{ .sensor_sonars_no_filt_left = sensor_sonars_no_filt_left, .sensor_sonars_no_filt_middle = sensor_sonars_no_filt_middle, .sensor_sonars_no_filt_right = sensor_sonars_no_filt_right, .sensor_sonars_no_filt_rear = sensor_sonars_no_filt_rear };
+  };
+  
+};
+
+using SensorSonarsMux = std::variant<SensorSonarsMux0, SensorSonarsMux1>;
+
+struct SensorSonars {
+  static constexpr uint16_t ID = 200;
+  static constexpr std::size_t LEN = 8;
+  
+  uint16_t sensor_sonars_err_count;
+  SensorSonarsMux mux;
+  
   [[nodiscard]] static std::expected<SensorSonars, CanError>
   parse(std::span<const uint8_t, LEN> data) noexcept {
-    const uint8_t raw_sensor_sonars_mux = detail::extract_le<uint8_t>(data.data(), 0, 4);
-    const uint8_t sensor_sonars_mux = static_cast<uint8_t>(raw_sensor_sonars_mux) * 1 + 0;
     const uint16_t raw_sensor_sonars_err_count = detail::extract_le<uint16_t>(data.data(), 4, 16);
     const uint16_t sensor_sonars_err_count = static_cast<uint16_t>(raw_sensor_sonars_err_count) * 1 + 0;
-    const uint16_t raw_sensor_sonars_left = detail::extract_le<uint16_t>(data.data(), 16, 28);
-    const double sensor_sonars_left = static_cast<double>(raw_sensor_sonars_left) * 0.1 + 0;
-    const uint16_t raw_sensor_sonars_middle = detail::extract_le<uint16_t>(data.data(), 28, 40);
-    const double sensor_sonars_middle = static_cast<double>(raw_sensor_sonars_middle) * 0.1 + 0;
-    const uint16_t raw_sensor_sonars_right = detail::extract_le<uint16_t>(data.data(), 40, 52);
-    const double sensor_sonars_right = static_cast<double>(raw_sensor_sonars_right) * 0.1 + 0;
-    const uint16_t raw_sensor_sonars_rear = detail::extract_le<uint16_t>(data.data(), 52, 64);
-    const double sensor_sonars_rear = static_cast<double>(raw_sensor_sonars_rear) * 0.1 + 0;
-    const uint16_t raw_sensor_sonars_no_filt_left = detail::extract_le<uint16_t>(data.data(), 16, 28);
-    const double sensor_sonars_no_filt_left = static_cast<double>(raw_sensor_sonars_no_filt_left) * 0.1 + 0;
-    const uint16_t raw_sensor_sonars_no_filt_middle = detail::extract_le<uint16_t>(data.data(), 28, 40);
-    const double sensor_sonars_no_filt_middle = static_cast<double>(raw_sensor_sonars_no_filt_middle) * 0.1 + 0;
-    const uint16_t raw_sensor_sonars_no_filt_right = detail::extract_le<uint16_t>(data.data(), 40, 52);
-    const double sensor_sonars_no_filt_right = static_cast<double>(raw_sensor_sonars_no_filt_right) * 0.1 + 0;
-    const uint16_t raw_sensor_sonars_no_filt_rear = detail::extract_le<uint16_t>(data.data(), 52, 64);
-    const double sensor_sonars_no_filt_rear = static_cast<double>(raw_sensor_sonars_no_filt_rear) * 0.1 + 0;
-    return SensorSonars{ .sensor_sonars_mux = sensor_sonars_mux, .sensor_sonars_err_count = sensor_sonars_err_count, .sensor_sonars_left = sensor_sonars_left, .sensor_sonars_middle = sensor_sonars_middle, .sensor_sonars_right = sensor_sonars_right, .sensor_sonars_rear = sensor_sonars_rear, .sensor_sonars_no_filt_left = sensor_sonars_no_filt_left, .sensor_sonars_no_filt_middle = sensor_sonars_no_filt_middle, .sensor_sonars_no_filt_right = sensor_sonars_no_filt_right, .sensor_sonars_no_filt_rear = sensor_sonars_no_filt_rear };
+    const uint8_t mux_raw = detail::extract_le<uint8_t>(data.data(), 0, 4);
+    switch (mux_raw) {
+      case 0:
+       {
+        auto inner = SensorSonarsMux0::decode_from(data.data());
+        if (!inner) return std::unexpected(inner.error());
+        return SensorSonars{ .sensor_sonars_err_count = sensor_sonars_err_count, .mux = *inner };
+      };
+      case 1:
+       {
+        auto inner = SensorSonarsMux1::decode_from(data.data());
+        if (!inner) return std::unexpected(inner.error());
+        return SensorSonars{ .sensor_sonars_err_count = sensor_sonars_err_count, .mux = *inner };
+      };
+      default: return std::unexpected(CanError::InvalidData);
+    };
   };
   
 };
