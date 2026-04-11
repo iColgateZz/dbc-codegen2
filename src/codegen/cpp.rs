@@ -3,17 +3,13 @@ use std::collections::BTreeMap;
 use heck::ToSnakeCase;
 
 use crate::{
-    DbcFile,
-    codegen::Generator,
-    empty, end_block,
-    ir::{
+    DbcFile, codegen::Generator, empty, end_block, end_block_no_close, ir::{
         message::{Message, MessageId, MessageSignalClassification},
         signal::Signal,
         signal_layout::ByteOrder,
         signal_value_enum::SignalValueEnum,
-        signal_value_type::CppType,
-    },
-    line, start_block,
+        signal_value_type::{CppType, RawType},
+    }, line, start_block
 };
 
 pub struct CppGen;
@@ -38,6 +34,14 @@ impl CppGen {
         out.into_string()
     }
 
+    fn cpp_uint_repr_for_float(raw_type: &RawType) -> &'static str {
+        match raw_type {
+            RawType::Float32 => "uint32_t",
+            RawType::Float64 => "uint64_t",
+            RawType::Integer(_) => unreachable!("not a float raw type"),
+        }
+    }
+
     fn includes(out: &mut Generator) {
         const INCLUDES: &[&str] = &[
             "array", "bit", "cstddef", "cstdint", "cstdio", "cstring", "expected", "span",
@@ -58,33 +62,6 @@ impl CppGen {
             line!(out, "{},", error);
         }
         end_block!(out, "");
-        empty!(out);
-    }
-
-    fn endian_read_fn(out: &mut Generator, name: &str, swap_if: &str) {
-        line!(out, "template <typename T>");
-        start_block!(
-            out,
-            "[[nodiscard]] constexpr T {name}(const uint8_t *d) noexcept"
-        );
-        line!(out, "T v{{}};");
-        line!(out, "std::memcpy(&v, d, sizeof(T));");
-        line!(
-            out,
-            "if constexpr (std::endian::native == std::endian::{swap_if}) v = std::byteswap(v);"
-        );
-        end_block!(out, "return v;");
-        empty!(out);
-    }
-
-    fn endian_write_fn(out: &mut Generator, name: &str, swap_if: &str) {
-        line!(out, "template <typename T>");
-        start_block!(out, "constexpr void {name}(uint8_t *d, T v) noexcept");
-        line!(
-            out,
-            "if constexpr (std::endian::native == std::endian::{swap_if}) v = std::byteswap(v);"
-        );
-        end_block!(out, "std::memcpy(d, &v, sizeof(T));");
         empty!(out);
     }
 
@@ -113,6 +90,62 @@ impl CppGen {
         end_block!(out, "");
         end_block!(out, "");
         end_block!(out, "return static_cast<T>(result);");
+        empty!(out);
+    }
+
+    fn insert_le_fn(out: &mut Generator) {
+        line!(out, "template <typename T>");
+        start_block!(
+            out,
+            "constexpr void insert_le(uint8_t* data, std::size_t start, std::size_t end, T value) noexcept"
+        );
+        line!(out, "using U = std::make_unsigned_t<T>;");
+        line!(out, "U v = static_cast<U>(value);");
+        line!(out, "const std::size_t len = end - start;");
+        start_block!(out, "for (std::size_t i = 0; i < len; ++i)");
+        line!(out, "const std::size_t bit_idx = start + i;");
+        line!(
+            out,
+            "const uint8_t bit = static_cast<uint8_t>((v >> i) & 0x1u);"
+        );
+        line!(
+            out,
+            "data[bit_idx / 8] &= ~static_cast<uint8_t>(1u << (bit_idx % 8));"
+        );
+        line!(
+            out,
+            "data[bit_idx / 8] |= static_cast<uint8_t>(bit << (bit_idx % 8));"
+        );
+        end_block!(out, "");
+        end_block!(out, "");
+        empty!(out);
+    }
+
+    fn insert_be_fn(out: &mut Generator) {
+        line!(out, "template <typename T>");
+        start_block!(
+            out,
+            "constexpr void insert_be(uint8_t* data, std::size_t start, std::size_t end, T value) noexcept"
+        );
+        line!(out, "using U = std::make_unsigned_t<T>;");
+        line!(out, "U v = static_cast<U>(value);");
+        line!(out, "const std::size_t len = end - start;");
+        start_block!(out, "for (std::size_t i = 0; i < len; ++i)");
+        line!(out, "const std::size_t bit_idx = start + i;");
+        line!(
+            out,
+            "const uint8_t bit = static_cast<uint8_t>((v >> (len - 1 - i)) & 0x1u);"
+        );
+        line!(
+            out,
+            "data[bit_idx / 8] &= ~static_cast<uint8_t>(1u << (7 - bit_idx % 8));"
+        );
+        line!(
+            out,
+            "data[bit_idx / 8] |= static_cast<uint8_t>(bit << (7 - bit_idx % 8));"
+        );
+        end_block!(out, "");
+        end_block!(out, "");
         empty!(out);
     }
 
@@ -148,12 +181,10 @@ impl CppGen {
         line!(out, "namespace detail {{");
         empty!(out);
 
-        Self::endian_read_fn(out, "read_le", "big");
-        Self::endian_read_fn(out, "read_be", "little");
-        Self::endian_write_fn(out, "write_le", "big");
-        Self::endian_write_fn(out, "write_be", "little");
         Self::extract_le_fn(out);
         Self::extract_be_fn(out);
+        Self::insert_le_fn(out);
+        Self::insert_be_fn(out);
 
         line!(out, "}} // namespace detail");
         empty!(out);
@@ -207,30 +238,29 @@ impl CppGen {
     ) {
         for signal in signals {
             let layout = &file.signal_layouts[signal.layout.0];
-            let raw_type = signal.raw_type.as_cpp_type();
             let phys_type = signal.physical_type.as_cpp_type();
             let field_name = signal.name.0.to_snake_case();
-            let raw_name = format!("raw_{}", field_name);
             let extract_fn = match layout.byte_order {
                 ByteOrder::LittleEndian => "extract_le",
                 ByteOrder::BigEndian => "extract_be",
             };
-
-            line!(
-                out,
-                "const {} {} = detail::{}<{}>({}, {}, {});",
-                raw_type,
-                raw_name,
-                extract_fn,
-                raw_type,
-                data_expr,
-                layout.bitvec_start,
-                layout.bitvec_end
-            );
-
-            let is_float = phys_type == "float" || phys_type == "double";
+            let is_raw_float = matches!(signal.raw_type, RawType::Float32 | RawType::Float64);
+            let is_phys_float = phys_type == "float" || phys_type == "double";
 
             if signal.signal_value_enum_idx.is_some() {
+                let raw_type = signal.raw_type.as_cpp_type();
+                let raw_name = format!("raw_{}", field_name);
+                line!(
+                    out,
+                    "const {} {} = detail::{}<{}>({}, {}, {});",
+                    raw_type,
+                    raw_name,
+                    extract_fn,
+                    raw_type,
+                    data_expr,
+                    layout.bitvec_start,
+                    layout.bitvec_end
+                );
                 let from_fn = format!("{}_from_raw", signal.name.upper_camel().to_snake_case());
                 line!(out, "auto {}_exp = {}({});", field_name, from_fn, raw_name);
                 line!(
@@ -239,12 +269,61 @@ impl CppGen {
                     field_name,
                     field_name
                 );
-            } else if is_float {
+            } else if is_raw_float {
+                let uint_repr = Self::cpp_uint_repr_for_float(&signal.raw_type);
                 let (factor_str, offset_str) = if phys_type == "float" {
                     (format!("{}f", layout.factor), format!("{}f", layout.offset))
                 } else {
                     (format!("{}", layout.factor), format!("{}", layout.offset))
                 };
+                line!(
+                    out,
+                    "const {} {}_bits = detail::{}<{}>({}, {}, {});",
+                    uint_repr,
+                    field_name,
+                    extract_fn,
+                    uint_repr,
+                    data_expr,
+                    layout.bitvec_start,
+                    layout.bitvec_end
+                );
+                line!(
+                    out,
+                    "{} {}_raw; std::memcpy(&{}_raw, &{}_bits, sizeof({}));",
+                    phys_type,
+                    field_name,
+                    field_name,
+                    field_name,
+                    phys_type
+                );
+                line!(
+                    out,
+                    "const {} {} = {}_raw * {} + {};",
+                    phys_type,
+                    field_name,
+                    field_name,
+                    factor_str,
+                    offset_str
+                );
+            } else if is_phys_float {
+                let raw_type = signal.raw_type.as_cpp_type();
+                let raw_name = format!("raw_{}", field_name);
+                let (factor_str, offset_str) = if phys_type == "float" {
+                    (format!("{}f", layout.factor), format!("{}f", layout.offset))
+                } else {
+                    (format!("{}", layout.factor), format!("{}", layout.offset))
+                };
+                line!(
+                    out,
+                    "const {} {} = detail::{}<{}>({}, {}, {});",
+                    raw_type,
+                    raw_name,
+                    extract_fn,
+                    raw_type,
+                    data_expr,
+                    layout.bitvec_start,
+                    layout.bitvec_end
+                );
                 line!(
                     out,
                     "const {} {} = static_cast<{}>({}) * {} + {};",
@@ -256,6 +335,19 @@ impl CppGen {
                     offset_str
                 );
             } else {
+                let raw_type = signal.raw_type.as_cpp_type();
+                let raw_name = format!("raw_{}", field_name);
+                line!(
+                    out,
+                    "const {} {} = detail::{}<{}>({}, {}, {});",
+                    raw_type,
+                    raw_name,
+                    extract_fn,
+                    raw_type,
+                    data_expr,
+                    layout.bitvec_start,
+                    layout.bitvec_end
+                );
                 line!(
                     out,
                     "const {} {} = static_cast<{}>({}) * {} + {};",
@@ -265,6 +357,110 @@ impl CppGen {
                     raw_name,
                     layout.factor as i64,
                     layout.offset as i64
+                );
+            }
+        }
+    }
+
+    fn emit_signal_writes(
+        out: &mut Generator,
+        signals: &[&Signal],
+        file: &DbcFile,
+        data_expr: &str,
+    ) {
+        for signal in signals {
+            let layout = &file.signal_layouts[signal.layout.0];
+            let phys_type = signal.physical_type.as_cpp_type();
+            let field_name = signal.name.0.to_snake_case();
+            let insert_fn = match layout.byte_order {
+                ByteOrder::LittleEndian => "insert_le",
+                ByteOrder::BigEndian => "insert_be",
+            };
+            let is_raw_float = matches!(signal.raw_type, RawType::Float32 | RawType::Float64);
+            let is_phys_float = phys_type == "float" || phys_type == "double";
+
+            if signal.signal_value_enum_idx.is_some() {
+                let raw_type = signal.raw_type.as_cpp_type();
+                line!(
+                    out,
+                    "detail::{}<{}>({}, {}, {}, static_cast<{}>({}));",
+                    insert_fn,
+                    raw_type,
+                    data_expr,
+                    layout.bitvec_start,
+                    layout.bitvec_end,
+                    raw_type,
+                    field_name
+                );
+            } else if is_raw_float {
+                let uint_repr = Self::cpp_uint_repr_for_float(&signal.raw_type);
+                let (factor_str, offset_str) = if phys_type == "float" {
+                    (format!("{}f", layout.factor), format!("{}f", layout.offset))
+                } else {
+                    (format!("{}", layout.factor), format!("{}", layout.offset))
+                };
+                line!(
+                    out,
+                    "const {} {}_raw = ({} - {}) / {};",
+                    phys_type,
+                    field_name,
+                    field_name,
+                    offset_str,
+                    factor_str
+                );
+                line!(
+                    out,
+                    "{} {}_bits; std::memcpy(&{}_bits, &{}_raw, sizeof({}));",
+                    uint_repr,
+                    field_name,
+                    field_name,
+                    field_name,
+                    uint_repr
+                );
+                line!(
+                    out,
+                    "detail::{}<{}>({}, {}, {}, {}_bits);",
+                    insert_fn,
+                    uint_repr,
+                    data_expr,
+                    layout.bitvec_start,
+                    layout.bitvec_end,
+                    field_name
+                );
+            } else if is_phys_float {
+                let raw_type = signal.raw_type.as_cpp_type();
+                let (factor_str, offset_str) = if phys_type == "float" {
+                    (format!("{}f", layout.factor), format!("{}f", layout.offset))
+                } else {
+                    (format!("{}", layout.factor), format!("{}", layout.offset))
+                };
+                line!(
+                    out,
+                    "detail::{}<{}>({}, {}, {}, static_cast<{}>(({} - {}) / {}));",
+                    insert_fn,
+                    raw_type,
+                    data_expr,
+                    layout.bitvec_start,
+                    layout.bitvec_end,
+                    raw_type,
+                    field_name,
+                    offset_str,
+                    factor_str
+                );
+            } else {
+                let raw_type = signal.raw_type.as_cpp_type();
+                line!(
+                    out,
+                    "detail::{}<{}>({}, {}, {}, static_cast<{}>(({}  - {}) / {}));",
+                    insert_fn,
+                    raw_type,
+                    data_expr,
+                    layout.bitvec_start,
+                    layout.bitvec_end,
+                    raw_type,
+                    field_name,
+                    layout.offset as i64,
+                    layout.factor as i64
                 );
             }
         }
@@ -303,6 +499,17 @@ impl CppGen {
                 );
             }
         }
+    }
+
+    fn serialize_message(out: &mut Generator, signals: &[&Signal], file: &DbcFile) {
+        start_block!(
+            out,
+            "[[nodiscard]] std::array<uint8_t, LEN> serialize() const noexcept"
+        );
+        line!(out, "std::array<uint8_t, LEN> data{{}};");
+        Self::emit_signal_writes(out, signals, file, "data.data()");
+        end_block!(out, "return data;");
+        empty!(out);
     }
 
     fn parse_message(out: &mut Generator, msg: &Message, signals: &[&Signal], file: &DbcFile) {
@@ -350,6 +557,11 @@ impl CppGen {
         end_block!(out, "return {}{{ {} }};", struct_name, fields_str);
         empty!(out);
 
+        start_block!(out, "void encode_into(uint8_t* data) const noexcept");
+        Self::emit_signal_writes(out, signals, file, "data");
+        end_block!(out, "");
+        empty!(out);
+
         end_block!(out, "");
         empty!(out);
     }
@@ -363,7 +575,6 @@ impl CppGen {
         file: &DbcFile,
     ) {
         let msg_name = msg.name.upper_camel();
-        let mux_enum_name = format!("{}Mux", msg_name);
 
         line!(
             out,
@@ -394,7 +605,6 @@ impl CppGen {
         start_block!(out, "switch (mux_raw)");
         for (mux_value, _) in muxed {
             let variant_struct = format!("{}Mux{}", msg_name, mux_value);
-            let variant_name = format!("V{}", mux_value);
             line!(out, "case {}:", mux_value);
             start_block!(out, "");
             line!(
@@ -426,6 +636,61 @@ impl CppGen {
         empty!(out);
     }
 
+    fn serialize_mux_message(
+        out: &mut Generator,
+        msg: &Message,
+        plain: &[&Signal],
+        mux_signal: &Signal,
+        muxed: &BTreeMap<u64, Vec<&Signal>>,
+        file: &DbcFile,
+    ) {
+        let msg_name = msg.name.upper_camel();
+
+        start_block!(
+            out,
+            "[[nodiscard]] std::array<uint8_t, LEN> serialize() const noexcept"
+        );
+        line!(out, "std::array<uint8_t, LEN> data{{}};");
+
+        Self::emit_signal_writes(out, plain, file, "data.data()");
+
+        let mux_layout = &file.signal_layouts[mux_signal.layout.0];
+        let mux_raw_type = mux_signal.raw_type.as_cpp_type();
+        let mux_insert_fn = match mux_layout.byte_order {
+            ByteOrder::LittleEndian => "insert_le",
+            ByteOrder::BigEndian => "insert_be",
+        };
+
+        start_block!(out, "std::visit([&data](const auto& inner) noexcept");
+
+        for (mux_value, _) in muxed {
+            let variant_struct = format!("{}Mux{}", msg_name, mux_value);
+            start_block!(
+                out,
+                "if constexpr (std::is_same_v<std::decay_t<decltype(inner)>, {}>)",
+                variant_struct
+            );
+            line!(
+                out,
+                "detail::{}<{}>({}, {}, {}, static_cast<{}>({}));",
+                mux_insert_fn,
+                mux_raw_type,
+                "data.data()",
+                mux_layout.bitvec_start,
+                mux_layout.bitvec_end,
+                mux_raw_type,
+                mux_value
+            );
+            line!(out, "inner.encode_into(data.data());");
+            end_block!(out, "");
+        }
+
+        end_block_no_close!(out, "}}, mux);");
+
+        end_block!(out, "return data;");
+        empty!(out);
+    }
+
     fn message(out: &mut Generator, msg: &Message, file: &DbcFile) {
         let all_signals: Vec<&Signal> = msg
             .signal_idxs
@@ -453,6 +718,7 @@ impl CppGen {
                 Self::emit_signal_fields(out, &sigs);
                 empty!(out);
                 Self::parse_message(out, msg, &sigs, file);
+                Self::serialize_message(out, &sigs, file);
                 end_block!(out, "");
                 empty!(out);
             }
@@ -501,6 +767,7 @@ impl CppGen {
                 line!(out, "{} mux;", mux_enum_name);
                 empty!(out);
                 Self::parse_mux_message(out, msg, &plain_sigs, mux_sig, &muxed_sigs, file);
+                Self::serialize_mux_message(out, msg, &plain_sigs, mux_sig, &muxed_sigs, file);
                 end_block!(out, "");
                 empty!(out);
             }
