@@ -44,7 +44,7 @@ impl CppGen {
 
     fn includes(out: &mut Generator) {
         const INCLUDES: &[&str] = &[
-            "array", "bit", "cstddef", "cstdint", "cstdio", "cstring", "expected", "span",
+            "array", "cstddef", "cstdint", "expected", "span",
             "variant",
         ];
 
@@ -82,11 +82,14 @@ impl CppGen {
         );
         end_block!(out, "");
         start_block!(out, "if constexpr (std::is_signed_v<T>)");
+        line!(out, "if (len == 0) return T(0);");
         start_block!(
             out,
-            "if (len < sizeof(U) * 8 && (result & (U(1) << (len - 1))))"
+            "if (len < sizeof(U) * 8)"
         );
-        line!(out, "result |= ~U(0) << len;");
+        line!(out, "const U sign_bit = static_cast<U>(U(1) << (len - 1));");
+        start_block!(out, "if (result & sign_bit)");
+        end_block!(out, "result |= static_cast<U>(~U(0) << len);");
         end_block!(out, "");
         end_block!(out, "");
         end_block!(out, "return static_cast<T>(result);");
@@ -166,11 +169,14 @@ impl CppGen {
         );
         end_block!(out, "");
         start_block!(out, "if constexpr (std::is_signed_v<T>)");
+        line!(out, "if (len == 0) return T(0);");
         start_block!(
             out,
-            "if (len < sizeof(U) * 8 && (result & (U(1) << (len - 1))))"
+            "if (len < sizeof(U) * 8)"
         );
-        line!(out, "result |= ~U(0) << len;");
+        line!(out, "const U sign_bit = static_cast<U>(U(1) << (len - 1));");
+        start_block!(out, "if (result & sign_bit)");
+        end_block!(out, "result |= static_cast<U>(~U(0) << len);");
         end_block!(out, "");
         end_block!(out, "");
         end_block!(out, "return static_cast<T>(result);");

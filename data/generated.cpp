@@ -1,11 +1,8 @@
 #pragma once
 
 #include <array>
-#include <bit>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <cstring>
 #include <expected>
 #include <span>
 #include <variant>
@@ -28,8 +25,12 @@ template <typename T>
     result |= static_cast<U>((data[bit_idx / 8] >> (bit_idx % 8)) & 0x1u) << i;
   };
   if constexpr (std::is_signed_v<T>) {
-    if (len < sizeof(U) * 8 && (result & (U(1) << (len - 1)))) {
-      result |= ~U(0) << len;
+    if (len == 0) return T(0);
+    if (len < sizeof(U) * 8) {
+      const U sign_bit = static_cast<U>(U(1) << (len - 1));
+      if (result & sign_bit) {
+        result |= static_cast<U>(~U(0) << len);
+      };
     };
   };
   return static_cast<T>(result);
@@ -45,8 +46,12 @@ template <typename T>
     result = (result << 1) | static_cast<U>((data[bit_idx / 8] >> (7 - bit_idx % 8)) & 0x1u);
   };
   if constexpr (std::is_signed_v<T>) {
-    if (len < sizeof(U) * 8 && (result & (U(1) << (len - 1)))) {
-      result |= ~U(0) << len;
+    if (len == 0) return T(0);
+    if (len < sizeof(U) * 8) {
+      const U sign_bit = static_cast<U>(U(1) << (len - 1));
+      if (result & sign_bit) {
+        result |= static_cast<U>(~U(0) << len);
+      };
     };
   };
   return static_cast<T>(result);
