@@ -11,8 +11,8 @@ pub struct DbcFile {
     //TODO: consider how to use can_dbc::value_tables. Basically,
     //      these are global enums for signal values
 
-    //TODO: can_dbc::comments and attribute_* stuff may be
-    //      used as metadata in generated code
+    //TODO: attribute defaults, definitions, values signal and values
+    //      message may be used as metadata in generated code
 
     //TODO: consider how to use can_dbc::signal_types and 
     //      signal_type_refs. original dbc-codegen does not
