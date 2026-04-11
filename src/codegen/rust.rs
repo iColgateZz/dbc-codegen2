@@ -276,7 +276,10 @@ impl MessageDef<'_> {
             }
         };
 
+        let doc = doc_comment(&msg.comment);
+
         quote! {
+            #doc
             #[derive(Debug, Clone)]
             pub struct #name {
                 #( #fields, )*
@@ -438,7 +441,10 @@ impl MessageDef<'_> {
             }
         });
 
+        let doc = doc_comment(&msg.comment);
+
         let struct_def = quote! {
+            #doc
             #[derive(Debug, Clone)]
             pub struct #name {
                 #( #plain_fields, )*
@@ -524,7 +530,9 @@ impl MessageDef<'_> {
         signals.iter().map(|s| {
             let field = s.field_ident();
             let ty = s.rust_type();
-            quote! { pub #field: #ty }
+            quote! {
+                pub #field: #ty
+            }
         })
     }
 
@@ -555,8 +563,10 @@ impl MessageDef<'_> {
         signals.iter().map(|s| {
             let field = s.field_ident();
             let ty = s.rust_type();
+            let doc = doc_comment(&s.signal.comment);
 
             quote! {
+                #doc
                 pub fn #field(&self) -> #ty {
                     self.#field
                 }
@@ -929,4 +939,14 @@ impl<'a> SignalCtx<'a> {
             }
         }
     }
+}
+
+fn doc_comment(comment: &Option<String>) -> Option<TokenStream> {
+    comment.as_ref().map(|c| {
+        let lines: Vec<_> = c.lines().collect();
+
+        quote! {
+            #( #[doc = #lines] )*
+        }
+    })
 }

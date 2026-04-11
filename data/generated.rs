@@ -86,6 +86,7 @@ impl Msg {
         Ok(result)
     }
 }
+///Sync message used to synchronize the controllers
 #[derive(Debug, Clone)]
 pub struct DriverHeartbeat {
     pub driver_heartbeat_cmd: DriverHeartbeatCmd,
