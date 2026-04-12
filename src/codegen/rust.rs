@@ -198,8 +198,6 @@ impl MessageDef<'_> {
         let name = format_ident!("{}", msg.name.upper_camel());
         let signals: Vec<&SignalCtx> = signals.iter().collect();
 
-        let fields = Self::gen_fields(&signals);
-
         let id_expr = match msg.id {
             MessageId::Standard(id) => {
                 quote! {
@@ -213,14 +211,22 @@ impl MessageDef<'_> {
             }
         };
 
-        let constructor_params = Self::gen_constructor_params(&signals);
-        let constructor_fields = Self::gen_constructor_fields(&signals);
-        let constructor_validations = Self::gen_constructor_validations(&signals);
-        let getters = Self::gen_getters(&signals);
-        let setters = Self::gen_setters(&signals);
         let len = msg.size as usize;
 
-        let impl_block = quote! {
+        let constructor_params = Self::gen_constructor_params(&signals);
+        let constructor_body = Self::gen_constructor_body(&signals);
+        let getters = Self::gen_getters(&signals);
+        let setters = Self::gen_setters(&signals);
+
+        let doc = message_doc(&msg);
+
+        quote! {
+            #doc
+            #[derive(Debug, Clone)]
+            pub struct #name {
+                data: [u8; #len],
+            }
+
             impl #name {
                 pub const ID: Id = #id_expr;
                 pub const LEN: usize = #len;
@@ -229,10 +235,10 @@ impl MessageDef<'_> {
                     #( #constructor_params ),*
                 ) -> Result<Self, CanError> {
                     let mut msg = Self {
-                        #( #constructor_fields ),*
+                        data: [0u8; Self::LEN],
                     };
 
-                    #( #constructor_validations )*
+                    #constructor_body
 
                     Ok(msg)
                 }
@@ -241,59 +247,43 @@ impl MessageDef<'_> {
 
                 #( #setters )*
             }
-        };
 
-        let try_from = {
-            let reads = Self::gen_reads(&signals);
-            let fields = Self::gen_decode_fields(&signals);
+            impl CanMessage<{ Self::LEN }> for #name {
 
-            quote! {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
                     let data = frame.data();
+
                     if data.len() < Self::LEN {
                         return Err(CanError::InvalidPayloadSize);
                     }
 
-                    #( #reads )*
+                    let mut buf = [0u8; #len];
+                    buf.copy_from_slice(&data[..#len]);
 
-                    Ok(Self {
-                        #( #fields, )*
-                    })
+                    Ok(Self { data: buf })
                 }
-            }
-        };
 
-        let encode = {
-            let writes = Self::gen_writes(&signals);
-
-            quote! {
-                fn encode(&self) -> [u8; #name::LEN] {
-                    let mut data = [0u8; #name::LEN];
-
-                    #( #writes )*
-
-                    data
+                fn encode(&self) -> [u8; Self::LEN] {
+                    self.data
                 }
-            }
-        };
-
-        let doc = message_doc(&msg);
-
-        quote! {
-            #doc
-            #[derive(Debug, Clone)]
-            pub struct #name {
-                #( #fields, )*
-            }
-
-            #impl_block
-
-            impl CanMessage<{ #name::LEN }> for #name {
-                #try_from
-                #encode
             }
         }
         .to_tokens(tokens);
+    }
+
+    fn gen_constructor_body(signals: &[&SignalCtx]) -> TokenStream {
+        let setters = signals.iter().map(|s| {
+            let field = s.field_ident();
+            let setter = s.setter_ident();
+
+            quote! {
+                msg.#setter(#field)?;
+            }
+        });
+
+        quote! {
+            #( #setters )*
+        }
     }
 
     fn generate_mux(
@@ -566,10 +556,17 @@ impl MessageDef<'_> {
             let ty = s.rust_type();
             let doc = signal_doc(&s);
 
+            let read = s.decode_read();
+            let expr = s.decode_expr();
+
             quote! {
                 #doc
                 pub fn #field(&self) -> #ty {
-                    self.#field
+                    let data = &self.data;
+
+                    #read
+
+                    #expr
                 }
             }
         })
@@ -581,11 +578,18 @@ impl MessageDef<'_> {
             let setter = s.setter_ident();
             let ty = s.rust_type();
             let check = s.range_check();
+            let write = s.encode_write();
 
             quote! {
                 pub fn #setter(&mut self, value: #ty) -> Result<(), CanError> {
                     #check
-                    self.#field = value;
+
+                    let data = &mut self.data;
+
+                    let #field = value;
+
+                    #write
+
                     Ok(())
                 }
             }
@@ -894,22 +898,27 @@ impl<'a> SignalCtx<'a> {
     //      do not perform addition when offset is 0
     fn decode_field(&self) -> TokenStream {
         let field = self.field_ident();
+        let expr = self.decode_expr();
+
+        quote! { #field: #expr }
+    }
+
+    fn decode_expr(&self) -> TokenStream {
         let raw = self.raw_ident();
 
         if self.is_enum() {
             let enum_name = self.enum_ident();
             let raw_ty = self.raw_rust_type();
-            quote! { #field: #enum_name::from(#raw as #raw_ty) }
+            quote! { #enum_name::from(#raw as #raw_ty) }
         } else if self.is_float() {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
-            // bitvec does not work with floats. See comment in decode_read!
             let ty = format_ident!("{}", self.signal.physical_type.as_rust_type());
-            quote! { #field: (#raw as #ty) * (#factor) + (#offset) }
+            quote! { (#raw as #ty) * (#factor) + (#offset) }
         } else {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
-            quote! { #field: (#raw) * (#factor) + (#offset) }
+            quote! { (#raw) * (#factor) + (#offset) }
         }
     }
 
@@ -923,20 +932,20 @@ impl<'a> SignalCtx<'a> {
 
         if self.is_enum() {
             let ty = self.raw_rust_type();
-            quote! { data.view_bits_mut::<#order>()[#start..#end].#store(#ty::from(self.#field)); }
+            quote! { data.view_bits_mut::<#order>()[#start..#end].#store(#ty::from(#field)); }
         } else if self.is_float() {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             // bitvec does not work with floats. See comment in decode_read!
             let int_ty = self.int_repr_for_float();
             quote! {
-                data.view_bits_mut::<#order>()[#start..#end].#store(((self.#field - (#offset)) / (#factor)) as #int_ty);
+                data.view_bits_mut::<#order>()[#start..#end].#store(((#field - (#offset)) / (#factor)) as #int_ty);
             }
         } else {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             quote! {
-                data.view_bits_mut::<#order>()[#start..#end].#store((self.#field - (#offset)) / (#factor));
+                data.view_bits_mut::<#order>()[#start..#end].#store((#field - (#offset)) / (#factor));
             }
         }
     }
