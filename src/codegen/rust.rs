@@ -962,9 +962,9 @@ fn message_doc(msg: &Message) -> TokenStream {
 
     let mut lines = vec![
         format!("{}", name),
-        format!("ID: {}", id_text),
-        format!("Size: {} bytes", size),
-        format!("Transmitter: {}", transmitter),
+        format!("- ID: {}", id_text),
+        format!("- Size: {} bytes", size),
+        format!("- Transmitter: {}", transmitter),
     ];
 
     if let Some(comment) = &msg.comment {
@@ -1015,16 +1015,16 @@ fn signal_doc(sig: &SignalCtx) -> TokenStream {
 
     let mut lines = vec![
         format!("{}", name.raw()),
-        format!("Min: {}", min),
-        format!("Max: {}", max),
-        format!("Unit: {}", unit),
-        format!("Receivers: {}", receivers),
-        format!("Start bit: {}", start),
-        format!("Size: {} bits", size),
-        format!("Factor: {}", factor),
-        format!("Offset: {}", offset),
-        format!("Byte order: {}", byte_order),
-        format!("Type: {}", signed),
+        format!("- Min: {}", min),
+        format!("- Max: {}", max),
+        format!("- Unit: {}", unit),
+        format!("- Receivers: {}", receivers),
+        format!("- Start bit: {}", start),
+        format!("- Size: {} bits", size),
+        format!("- Factor: {}", factor),
+        format!("- Offset: {}", offset),
+        format!("- Byte order: {}", byte_order),
+        format!("- Type: {}", signed),
     ];
 
     if let Some(comment) = &s.comment {

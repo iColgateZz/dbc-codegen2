@@ -87,9 +87,9 @@ impl Msg {
     }
 }
 ///DRIVER_HEARTBEAT
-///ID: Standard 100 (0x64)
-///Size: 1 bytes
-///Transmitter: DRIVER
+///- ID: Standard 100 (0x64)
+///- Size: 1 bytes
+///- Transmitter: DRIVER
 ///
 ///Sync message used to synchronize the controllers
 #[derive(Debug, Clone)]
@@ -105,16 +105,16 @@ impl DriverHeartbeat {
         Ok(msg)
     }
     ///DRIVER_HEARTBEAT_cmd
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: SENSOR, MOTOR
-    ///Start bit: 0
-    ///Size: 8 bits
-    ///Factor: 1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: SENSOR, MOTOR
+    ///- Start bit: 0
+    ///- Size: 8 bits
+    ///- Factor: 1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn driver_heartbeat_cmd(&self) -> DriverHeartbeatCmd {
         self.driver_heartbeat_cmd
     }
@@ -149,9 +149,9 @@ impl CanMessage<{ DriverHeartbeat::LEN }> for DriverHeartbeat {
     }
 }
 ///IO_DEBUG
-///ID: Standard 500 (0x1F4)
-///Size: 4 bytes
-///Transmitter: IO
+///- ID: Standard 500 (0x1F4)
+///- Size: 4 bytes
+///- Transmitter: IO
 #[derive(Debug, Clone)]
 pub struct IoDebug {
     pub io_debug_test_unsigned: u8,
@@ -181,58 +181,58 @@ impl IoDebug {
         Ok(msg)
     }
     ///IO_DEBUG_test_unsigned
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DBG
-    ///Start bit: 0
-    ///Size: 8 bits
-    ///Factor: 1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DBG
+    ///- Start bit: 0
+    ///- Size: 8 bits
+    ///- Factor: 1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn io_debug_test_unsigned(&self) -> u8 {
         self.io_debug_test_unsigned
     }
     ///IO_DEBUG_test_enum
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DBG
-    ///Start bit: 8
-    ///Size: 8 bits
-    ///Factor: 1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DBG
+    ///- Start bit: 8
+    ///- Size: 8 bits
+    ///- Factor: 1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn io_debug_test_enum(&self) -> IoDebugTestEnum {
         self.io_debug_test_enum
     }
     ///IO_DEBUG_test_signed
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DBG
-    ///Start bit: 16
-    ///Size: 8 bits
-    ///Factor: 1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: signed
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DBG
+    ///- Start bit: 16
+    ///- Size: 8 bits
+    ///- Factor: 1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: signed
     pub fn io_debug_test_signed(&self) -> i8 {
         self.io_debug_test_signed
     }
     ///IO_DEBUG_test_float
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DBG
-    ///Start bit: 24
-    ///Size: 8 bits
-    ///Factor: 0.5
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DBG
+    ///- Start bit: 24
+    ///- Size: 8 bits
+    ///- Factor: 0.5
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn io_debug_test_float(&self) -> f64 {
         self.io_debug_test_float
     }
@@ -295,9 +295,9 @@ impl CanMessage<{ IoDebug::LEN }> for IoDebug {
     }
 }
 ///MOTOR_CMD
-///ID: Standard 101 (0x65)
-///Size: 1 bytes
-///Transmitter: DRIVER
+///- ID: Standard 101 (0x65)
+///- Size: 1 bytes
+///- Transmitter: DRIVER
 #[derive(Debug, Clone)]
 pub struct MotorCmd {
     pub motor_cmd_steer: i8,
@@ -316,30 +316,30 @@ impl MotorCmd {
         Ok(msg)
     }
     ///MOTOR_CMD_steer
-    ///Min: -5
-    ///Max: 5
-    ///Unit:
-    ///Receivers: MOTOR
-    ///Start bit: 0
-    ///Size: 4 bits
-    ///Factor: 1
-    ///Offset: -5
-    ///Byte order: LittleEndian
-    ///Type: signed
+    ///- Min: -5
+    ///- Max: 5
+    ///- Unit:
+    ///- Receivers: MOTOR
+    ///- Start bit: 0
+    ///- Size: 4 bits
+    ///- Factor: 1
+    ///- Offset: -5
+    ///- Byte order: LittleEndian
+    ///- Type: signed
     pub fn motor_cmd_steer(&self) -> i8 {
         self.motor_cmd_steer
     }
     ///MOTOR_CMD_drive
-    ///Min: 0
-    ///Max: 9
-    ///Unit:
-    ///Receivers: MOTOR
-    ///Start bit: 4
-    ///Size: 4 bits
-    ///Factor: 1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 9
+    ///- Unit:
+    ///- Receivers: MOTOR
+    ///- Start bit: 4
+    ///- Size: 4 bits
+    ///- Factor: 1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn motor_cmd_drive(&self) -> u8 {
         self.motor_cmd_drive
     }
@@ -385,9 +385,9 @@ impl CanMessage<{ MotorCmd::LEN }> for MotorCmd {
     }
 }
 ///MOTOR_STATUS
-///ID: Standard 400 (0x190)
-///Size: 3 bytes
-///Transmitter: MOTOR
+///- ID: Standard 400 (0x190)
+///- Size: 3 bytes
+///- Transmitter: MOTOR
 #[derive(Debug, Clone)]
 pub struct MotorStatus {
     pub motor_status_wheel_error: u8,
@@ -409,30 +409,30 @@ impl MotorStatus {
         Ok(msg)
     }
     ///MOTOR_STATUS_wheel_error
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DRIVER, IO
-    ///Start bit: 0
-    ///Size: 1 bits
-    ///Factor: 1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DRIVER, IO
+    ///- Start bit: 0
+    ///- Size: 1 bits
+    ///- Factor: 1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn motor_status_wheel_error(&self) -> u8 {
         self.motor_status_wheel_error
     }
     ///MOTOR_STATUS_speed_kph
-    ///Min: 0
-    ///Max: 0
-    ///Unit: kph
-    ///Receivers: DRIVER, IO
-    ///Start bit: 8
-    ///Size: 16 bits
-    ///Factor: 0.001
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit: kph
+    ///- Receivers: DRIVER, IO
+    ///- Start bit: 8
+    ///- Size: 16 bits
+    ///- Factor: 0.001
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn motor_status_speed_kph(&self) -> f64 {
         self.motor_status_speed_kph
     }
@@ -499,58 +499,58 @@ impl SensorSonarsMux0 {
         Ok(msg)
     }
     ///SENSOR_SONARS_left
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DRIVER, IO
-    ///Start bit: 16
-    ///Size: 12 bits
-    ///Factor: 0.1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DRIVER, IO
+    ///- Start bit: 16
+    ///- Size: 12 bits
+    ///- Factor: 0.1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn sensor_sonars_left(&self) -> f64 {
         self.sensor_sonars_left
     }
     ///SENSOR_SONARS_middle
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DRIVER, IO
-    ///Start bit: 28
-    ///Size: 12 bits
-    ///Factor: 0.1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DRIVER, IO
+    ///- Start bit: 28
+    ///- Size: 12 bits
+    ///- Factor: 0.1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn sensor_sonars_middle(&self) -> f64 {
         self.sensor_sonars_middle
     }
     ///SENSOR_SONARS_right
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DRIVER, IO
-    ///Start bit: 40
-    ///Size: 12 bits
-    ///Factor: 0.1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DRIVER, IO
+    ///- Start bit: 40
+    ///- Size: 12 bits
+    ///- Factor: 0.1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn sensor_sonars_right(&self) -> f64 {
         self.sensor_sonars_right
     }
     ///SENSOR_SONARS_rear
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DRIVER, IO
-    ///Start bit: 52
-    ///Size: 12 bits
-    ///Factor: 0.1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DRIVER, IO
+    ///- Start bit: 52
+    ///- Size: 12 bits
+    ///- Factor: 0.1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn sensor_sonars_rear(&self) -> f64 {
         self.sensor_sonars_rear
     }
@@ -628,58 +628,58 @@ impl SensorSonarsMux1 {
         Ok(msg)
     }
     ///SENSOR_SONARS_no_filt_left
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DBG
-    ///Start bit: 16
-    ///Size: 12 bits
-    ///Factor: 0.1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DBG
+    ///- Start bit: 16
+    ///- Size: 12 bits
+    ///- Factor: 0.1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn sensor_sonars_no_filt_left(&self) -> f64 {
         self.sensor_sonars_no_filt_left
     }
     ///SENSOR_SONARS_no_filt_middle
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DBG
-    ///Start bit: 28
-    ///Size: 12 bits
-    ///Factor: 0.1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DBG
+    ///- Start bit: 28
+    ///- Size: 12 bits
+    ///- Factor: 0.1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn sensor_sonars_no_filt_middle(&self) -> f64 {
         self.sensor_sonars_no_filt_middle
     }
     ///SENSOR_SONARS_no_filt_right
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DBG
-    ///Start bit: 40
-    ///Size: 12 bits
-    ///Factor: 0.1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DBG
+    ///- Start bit: 40
+    ///- Size: 12 bits
+    ///- Factor: 0.1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn sensor_sonars_no_filt_right(&self) -> f64 {
         self.sensor_sonars_no_filt_right
     }
     ///SENSOR_SONARS_no_filt_rear
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DBG
-    ///Start bit: 52
-    ///Size: 12 bits
-    ///Factor: 0.1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DBG
+    ///- Start bit: 52
+    ///- Size: 12 bits
+    ///- Factor: 0.1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn sensor_sonars_no_filt_rear(&self) -> f64 {
         self.sensor_sonars_no_filt_rear
     }
@@ -752,9 +752,9 @@ pub enum SensorSonarsMux {
     V1(SensorSonarsMux1),
 }
 ///SENSOR_SONARS
-///ID: Standard 200 (0xC8)
-///Size: 8 bytes
-///Transmitter: SENSOR
+///- ID: Standard 200 (0xC8)
+///- Size: 8 bytes
+///- Transmitter: SENSOR
 #[derive(Debug, Clone)]
 pub struct SensorSonars {
     pub sensor_sonars_err_count: u16,
@@ -775,16 +775,16 @@ impl SensorSonars {
         Ok(msg)
     }
     ///SENSOR_SONARS_err_count
-    ///Min: 0
-    ///Max: 0
-    ///Unit:
-    ///Receivers: DRIVER, IO
-    ///Start bit: 4
-    ///Size: 12 bits
-    ///Factor: 1
-    ///Offset: 0
-    ///Byte order: LittleEndian
-    ///Type: unsigned
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: DRIVER, IO
+    ///- Start bit: 4
+    ///- Size: 12 bits
+    ///- Factor: 1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: unsigned
     pub fn sensor_sonars_err_count(&self) -> u16 {
         self.sensor_sonars_err_count
     }
