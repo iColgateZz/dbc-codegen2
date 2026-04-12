@@ -1,5 +1,6 @@
 use embedded_can::{Frame, Id, StandardId, ExtendedId};
 use bitvec::prelude::*;
+use core::ops::BitOr;
 #[derive(Debug, Clone)]
 pub enum CanError {
     UnknownFrameId,
@@ -464,103 +465,16 @@ impl CanMessage<{ Self::LEN }> for MotorStatus {
 }
 #[derive(Debug, Clone)]
 pub enum SensorSonarsMux {
-    V0,
-    V1,
+    V0(SensorSonarsMux0),
+    V1(SensorSonarsMux1),
 }
-///SENSOR_SONARS
-///- ID: Standard 200 (0xC8)
-///- Size: 8 bytes
-///- Transmitter: SENSOR
-#[derive(Debug, Clone)]
-pub struct SensorSonars {
+#[derive(Debug, Clone, Default)]
+pub struct SensorSonarsMux0 {
     data: [u8; 8usize],
 }
-impl SensorSonars {
-    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(200u16) });
-    pub const LEN: usize = 8usize;
-    pub fn new(
-        sensor_sonars_mux: u8,
-        sensor_sonars_err_count: u16,
-        sensor_sonars_left: f64,
-        sensor_sonars_middle: f64,
-        sensor_sonars_right: f64,
-        sensor_sonars_rear: f64,
-        sensor_sonars_no_filt_left: f64,
-        sensor_sonars_no_filt_middle: f64,
-        sensor_sonars_no_filt_right: f64,
-        sensor_sonars_no_filt_rear: f64,
-    ) -> Result<Self, CanError> {
-        let mut msg = Self { data: [0u8; 8usize] };
-        msg.set_sensor_sonars_mux(sensor_sonars_mux)?;
-        msg.set_sensor_sonars_err_count(sensor_sonars_err_count)?;
-        msg.set_sensor_sonars_left(sensor_sonars_left)?;
-        msg.set_sensor_sonars_middle(sensor_sonars_middle)?;
-        msg.set_sensor_sonars_right(sensor_sonars_right)?;
-        msg.set_sensor_sonars_rear(sensor_sonars_rear)?;
-        msg.set_sensor_sonars_no_filt_left(sensor_sonars_no_filt_left)?;
-        msg.set_sensor_sonars_no_filt_middle(sensor_sonars_no_filt_middle)?;
-        msg.set_sensor_sonars_no_filt_right(sensor_sonars_no_filt_right)?;
-        msg.set_sensor_sonars_no_filt_rear(sensor_sonars_no_filt_rear)?;
-        Ok(msg)
-    }
-    pub fn mux(&self) -> Result<SensorSonarsMux, CanError> {
-        let data = &self.data;
-        let raw_sensor_sonars_mux = data
-            .view_bits::<Lsb0>()[0usize..4usize]
-            .load_le::<u8>();
-        let val = (raw_sensor_sonars_mux) * (1u8) + (0u8);
-        match val {
-            0u8 => Ok(SensorSonarsMux::V0),
-            1u8 => Ok(SensorSonarsMux::V1),
-            _ => Err(CanError::UnknownMuxValue),
-        }
-    }
-    pub fn set_mux(&mut self, mux: SensorSonarsMux) {
-        let data = &mut self.data;
-        match mux {
-            SensorSonarsMux::V0 => {
-                data.view_bits_mut::<Lsb0>()[0usize..4usize].store_le(0u64 as u8);
-            }
-            SensorSonarsMux::V1 => {
-                data.view_bits_mut::<Lsb0>()[0usize..4usize].store_le(1u64 as u8);
-            }
-        }
-    }
-    ///SENSOR_SONARS_mux
-    ///- Min: 0
-    ///- Max: 0
-    ///- Unit:
-    ///- Receivers: DRIVER, IO
-    ///- Start bit: 0
-    ///- Size: 4 bits
-    ///- Factor: 1
-    ///- Offset: 0
-    ///- Byte order: LittleEndian
-    ///- Type: unsigned
-    pub fn sensor_sonars_mux(&self) -> u8 {
-        let data = &self.data;
-        let raw_sensor_sonars_mux = data
-            .view_bits::<Lsb0>()[0usize..4usize]
-            .load_le::<u8>();
-        (raw_sensor_sonars_mux) * (1u8) + (0u8)
-    }
-    ///SENSOR_SONARS_err_count
-    ///- Min: 0
-    ///- Max: 0
-    ///- Unit:
-    ///- Receivers: DRIVER, IO
-    ///- Start bit: 4
-    ///- Size: 12 bits
-    ///- Factor: 1
-    ///- Offset: 0
-    ///- Byte order: LittleEndian
-    ///- Type: unsigned
-    pub fn sensor_sonars_err_count(&self) -> u16 {
-        let data = &self.data;
-        let raw_sensor_sonars_err_count = data
-            .view_bits::<Lsb0>()[4usize..16usize]
-            .load_le::<u16>();
-        (raw_sensor_sonars_err_count) * (1u16) + (0u16)
+impl SensorSonarsMux0 {
+    pub fn new() -> Self {
+        Self { data: [0u8; 8usize] }
     }
     ///SENSOR_SONARS_left
     ///- Min: 0
@@ -634,6 +548,43 @@ impl SensorSonars {
             .load_le::<u16>();
         (raw_sensor_sonars_rear as f64) * (0.1f64) + (0f64)
     }
+    pub fn set_sensor_sonars_left(&mut self, value: f64) -> Result<(), CanError> {
+        let data = &mut self.data;
+        let sensor_sonars_left = value;
+        data.view_bits_mut::<Lsb0>()[16usize..28usize]
+            .store_le(((sensor_sonars_left - (0f64)) / (0.1f64)) as u16);
+        Ok(())
+    }
+    pub fn set_sensor_sonars_middle(&mut self, value: f64) -> Result<(), CanError> {
+        let data = &mut self.data;
+        let sensor_sonars_middle = value;
+        data.view_bits_mut::<Lsb0>()[28usize..40usize]
+            .store_le(((sensor_sonars_middle - (0f64)) / (0.1f64)) as u16);
+        Ok(())
+    }
+    pub fn set_sensor_sonars_right(&mut self, value: f64) -> Result<(), CanError> {
+        let data = &mut self.data;
+        let sensor_sonars_right = value;
+        data.view_bits_mut::<Lsb0>()[40usize..52usize]
+            .store_le(((sensor_sonars_right - (0f64)) / (0.1f64)) as u16);
+        Ok(())
+    }
+    pub fn set_sensor_sonars_rear(&mut self, value: f64) -> Result<(), CanError> {
+        let data = &mut self.data;
+        let sensor_sonars_rear = value;
+        data.view_bits_mut::<Lsb0>()[52usize..64usize]
+            .store_le(((sensor_sonars_rear - (0f64)) / (0.1f64)) as u16);
+        Ok(())
+    }
+}
+#[derive(Debug, Clone, Default)]
+pub struct SensorSonarsMux1 {
+    data: [u8; 8usize],
+}
+impl SensorSonarsMux1 {
+    pub fn new() -> Self {
+        Self { data: [0u8; 8usize] }
+    }
     ///SENSOR_SONARS_no_filt_left
     ///- Min: 0
     ///- Max: 0
@@ -706,48 +657,6 @@ impl SensorSonars {
             .load_le::<u16>();
         (raw_sensor_sonars_no_filt_rear as f64) * (0.1f64) + (0f64)
     }
-    pub fn set_sensor_sonars_mux(&mut self, value: u8) -> Result<(), CanError> {
-        let data = &mut self.data;
-        let sensor_sonars_mux = value;
-        data.view_bits_mut::<Lsb0>()[0usize..4usize]
-            .store_le((sensor_sonars_mux - (0u8)) / (1u8));
-        Ok(())
-    }
-    pub fn set_sensor_sonars_err_count(&mut self, value: u16) -> Result<(), CanError> {
-        let data = &mut self.data;
-        let sensor_sonars_err_count = value;
-        data.view_bits_mut::<Lsb0>()[4usize..16usize]
-            .store_le((sensor_sonars_err_count - (0u16)) / (1u16));
-        Ok(())
-    }
-    pub fn set_sensor_sonars_left(&mut self, value: f64) -> Result<(), CanError> {
-        let data = &mut self.data;
-        let sensor_sonars_left = value;
-        data.view_bits_mut::<Lsb0>()[16usize..28usize]
-            .store_le(((sensor_sonars_left - (0f64)) / (0.1f64)) as u16);
-        Ok(())
-    }
-    pub fn set_sensor_sonars_middle(&mut self, value: f64) -> Result<(), CanError> {
-        let data = &mut self.data;
-        let sensor_sonars_middle = value;
-        data.view_bits_mut::<Lsb0>()[28usize..40usize]
-            .store_le(((sensor_sonars_middle - (0f64)) / (0.1f64)) as u16);
-        Ok(())
-    }
-    pub fn set_sensor_sonars_right(&mut self, value: f64) -> Result<(), CanError> {
-        let data = &mut self.data;
-        let sensor_sonars_right = value;
-        data.view_bits_mut::<Lsb0>()[40usize..52usize]
-            .store_le(((sensor_sonars_right - (0f64)) / (0.1f64)) as u16);
-        Ok(())
-    }
-    pub fn set_sensor_sonars_rear(&mut self, value: f64) -> Result<(), CanError> {
-        let data = &mut self.data;
-        let sensor_sonars_rear = value;
-        data.view_bits_mut::<Lsb0>()[52usize..64usize]
-            .store_le(((sensor_sonars_rear - (0f64)) / (0.1f64)) as u16);
-        Ok(())
-    }
     pub fn set_sensor_sonars_no_filt_left(
         &mut self,
         value: f64,
@@ -789,7 +698,57 @@ impl SensorSonars {
         Ok(())
     }
 }
-impl CanMessage<{ 8usize }> for SensorSonars {
+///SENSOR_SONARS
+///- ID: Standard 200 (0xC8)
+///- Size: 8 bytes
+///- Transmitter: SENSOR
+#[derive(Debug, Clone)]
+pub struct SensorSonars {
+    data: [u8; 8usize],
+}
+impl SensorSonars {
+    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(200u16) });
+    pub const LEN: usize = 8usize;
+    pub fn mux(&self) -> Result<SensorSonarsMux, CanError> {
+        let data = &self.data;
+        let raw_sensor_sonars_mux = data
+            .view_bits::<Lsb0>()[0usize..4usize]
+            .load_le::<u8>();
+        let val = (raw_sensor_sonars_mux) * (1u8) + (0u8);
+        match val {
+            0u8 => {
+                Ok(
+                    SensorSonarsMux::V0(SensorSonarsMux0 {
+                        data: self.data,
+                    }),
+                )
+            }
+            1u8 => {
+                Ok(
+                    SensorSonarsMux::V1(SensorSonarsMux1 {
+                        data: self.data,
+                    }),
+                )
+            }
+            _ => Err(CanError::UnknownMuxValue),
+        }
+    }
+    pub fn set_mux_0(&mut self, value: SensorSonarsMux0) -> Result<(), CanError> {
+        let b0 = BitArray::<_, LocalBits>::new(self.data);
+        let b1 = BitArray::<_, LocalBits>::new(value.data);
+        self.data = b0.bitor(b1).into_inner();
+        self.data.view_bits_mut::<Lsb0>()[0usize..4usize].store_le(0u64 as u8);
+        Ok(())
+    }
+    pub fn set_mux_1(&mut self, value: SensorSonarsMux1) -> Result<(), CanError> {
+        let b0 = BitArray::<_, LocalBits>::new(self.data);
+        let b1 = BitArray::<_, LocalBits>::new(value.data);
+        self.data = b0.bitor(b1).into_inner();
+        self.data.view_bits_mut::<Lsb0>()[0usize..4usize].store_le(1u64 as u8);
+        Ok(())
+    }
+}
+impl CanMessage<{ Self::LEN }> for SensorSonars {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         let data = frame.data();
         if data.len() < Self::LEN {

@@ -19,6 +19,7 @@ impl RustGen {
         let imports = quote! {
             use embedded_can::{Frame, Id, StandardId, ExtendedId};
             use bitvec::prelude::*;
+            use core::ops::BitOr;
         };
 
         let messages = &file.messages;
@@ -179,7 +180,7 @@ impl ToTokens for MessageDef<'_> {
                 // should refactor generate_mux to take SignalIdx values directly
                 // and build SignalCtx internally
                 // would make it simpler here
-                self.generate_mux(tokens, &all_ctxs, muxed_ctxs, mux_ctx);
+                self.generate_mux(tokens, muxed_ctxs, mux_ctx);
             }
         }
     }
@@ -282,13 +283,12 @@ impl MessageDef<'_> {
     fn generate_mux(
         &self,
         tokens: &mut TokenStream,
-        signals: &Vec<SignalCtx>,
         muxed: BTreeMap<u64, Vec<&SignalCtx>>,
         mux_signal: &SignalCtx,
     ) {
         let msg = self.msg;
         let name = format_ident!("{}", msg.name.upper_camel());
-        let mux_enum_name = format_ident!("{}Mux", name);
+        let mux_enum = format_ident!("{}Mux", name);
 
         let id_expr = match msg.id {
             MessageId::Standard(id) => {
@@ -301,37 +301,57 @@ impl MessageDef<'_> {
 
         let len = msg.size as usize;
 
-        let all_signals: Vec<&SignalCtx> = signals.iter().collect();
+        let doc = message_doc(&msg);
 
-        let constructor_params = Self::gen_constructor_params(&all_signals);
-        let constructor_body = Self::gen_constructor_body(&all_signals);
+        let variant_structs = muxed.iter().map(|(idx, sigs)| {
+            let struct_name = format_ident!("{}Mux{}", name, idx);
 
-        let getters = Self::gen_getters(&all_signals);
-        let setters = Self::gen_setters(&all_signals);
+            let ctxs: Vec<&SignalCtx> = sigs.iter().copied().collect();
+            let getters = Self::gen_getters(&ctxs);
+            let setters = Self::gen_setters(&ctxs);
 
-        let mux_variants = muxed.keys().map(|v| {
-            let variant = format_ident!("V{}", v);
-            quote! { #variant }
+            quote! {
+                #[derive(Debug, Clone, Default)]
+                pub struct #struct_name {
+                    data: [u8; #len],
+                }
+
+                impl #struct_name {
+                    pub fn new() -> Self {
+                        Self { data: [0u8; #len] }
+                    }
+
+                    #( #getters )*
+                    #( #setters )*
+                }
+            }
+        });
+
+        let mux_variants = muxed.keys().map(|idx| {
+            let variant = format_ident!("V{}", idx);
+            let struct_name = format_ident!("{}Mux{}", name, idx);
+
+            quote! { #variant(#struct_name) }
         });
 
         let mux_read = mux_signal.decode_read();
         let mux_expr = mux_signal.decode_expr();
 
-        let mux_match_arms = muxed.keys().map(|v| {
-            let variant = format_ident!("V{}", v);
-            let lit = mux_signal.signal.physical_type.literal(*v as i64);
+        let mux_match_arms = muxed.keys().map(|idx| {
+            let variant = format_ident!("V{}", idx);
+            let struct_name = format_ident!("{}Mux{}", name, idx);
+            let lit = mux_signal.signal.physical_type.literal(*idx as i64);
 
             quote! {
-                #lit => Ok(#mux_enum_name::#variant)
+                #lit => Ok(#mux_enum::#variant(#struct_name { data: self.data }))
             }
         });
 
         let mux_getter = quote! {
-            pub fn mux(&self) -> Result<#mux_enum_name, CanError> {
+            pub fn mux(&self) -> Result<#mux_enum, CanError> {
                 let data = &self.data;
 
                 #mux_read
-
                 let val = #mux_expr;
 
                 match val {
@@ -341,39 +361,38 @@ impl MessageDef<'_> {
             }
         };
 
-        let mux_raw_ty = mux_signal.raw_rust_type();
-        let (start, end) = mux_signal.start_end_bit();
-        let order = mux_signal.bitvec_order();
-        let store = mux_signal.store_fn();
+        let mux_setters = muxed.keys().map(|idx| {
+            let fn_name = format_ident!("set_mux_{}", idx);
+            let struct_name = format_ident!("{}Mux{}", name, idx);
 
-        let mux_set_arms = muxed.keys().map(|v| {
-            let variant = format_ident!("V{}", v);
+            let mux_raw_ty = mux_signal.raw_rust_type();
+
+            let (start, end) = mux_signal.start_end_bit();
+            let order = mux_signal.bitvec_order();
+            let store = mux_signal.store_fn();
 
             quote! {
-                #mux_enum_name::#variant => {
-                    data.view_bits_mut::<#order>()[#start..#end]
-                        .#store(#v as #mux_raw_ty);
+                pub fn #fn_name(&mut self, value: #struct_name) -> Result<(), CanError> {
+                    let b0 = BitArray::<_, LocalBits>::new(self.data);
+                    let b1 = BitArray::<_, LocalBits>::new(value.data);
+
+                    self.data = b0.bitor(b1).into_inner();
+
+                    self.data.view_bits_mut::<#order>()[#start..#end]
+                        .#store(#idx as #mux_raw_ty);
+
+                    Ok(())
                 }
             }
         });
 
-        let mux_setter = quote! {
-            pub fn set_mux(&mut self, mux: #mux_enum_name) {
-                let data = &mut self.data;
-
-                match mux {
-                    #( #mux_set_arms )*
-                }
-            }
-        };
-
-        let doc = message_doc(&msg);
-
         quote! {
             #[derive(Debug, Clone)]
-            pub enum #mux_enum_name {
+            pub enum #mux_enum {
                 #( #mux_variants, )*
             }
+
+            #( #variant_structs )*
 
             #doc
             #[derive(Debug, Clone)]
@@ -385,27 +404,12 @@ impl MessageDef<'_> {
                 pub const ID: Id = #id_expr;
                 pub const LEN: usize = #len;
 
-                pub fn new(
-                    #( #constructor_params ),*
-                ) -> Result<Self, CanError> {
-                    let mut msg = Self {
-                        data: [0u8; #len],
-                    };
-
-                    #constructor_body
-
-                    Ok(msg)
-                }
-
                 #mux_getter
-                #mux_setter
 
-                #( #getters )*
-                #( #setters )*
+                #( #mux_setters )*
             }
 
-            impl CanMessage<{ #len }> for #name {
-
+            impl CanMessage<{ Self::LEN }> for #name {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
                     let data = frame.data();
 
