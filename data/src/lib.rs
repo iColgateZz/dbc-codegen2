@@ -1,2 +1,2 @@
-include!("../generated.rs");
-// include!("../messages.rs");
+// include!("../generated.rs");
+include!("../messages.rs");

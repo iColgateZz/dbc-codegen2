@@ -5,7 +5,6 @@ use syn::File;
 use crate::DbcFile;
 use crate::codegen::config::CodegenConfig;
 use crate::ir::message::{Message, MessageId, MessageSignalClassification};
-use crate::ir::node::Node;
 use crate::ir::signal::{Receiver, Signal};
 use crate::ir::signal_layout::{ByteOrder, SignalLayout};
 use crate::ir::signal_value_enum::SignalValueEnum;
@@ -147,7 +146,7 @@ impl ToTokens for MessageDef<'_> {
                 self.generate_plain(tokens, &ctxs);
             }
             MessageSignalClassification::Multiplexed {
-                plain,
+                plain: _,
                 mux_signal,
                 muxed,
             } => {
@@ -156,12 +155,6 @@ impl ToTokens for MessageDef<'_> {
                     .signal_idxs
                     .iter()
                     .map(|idx| SignalCtx::new(&self.file.signals[idx.0], self.file, self.config))
-                    .collect();
-                let plain_ctxs: Vec<&SignalCtx> = plain
-                    .iter()
-                    .map(|idx| {
-                        &all_ctxs[self.msg.signal_idxs.iter().position(|i| i == idx).unwrap()]
-                    })
                     .collect();
                 let mux_ctx = &all_ctxs[self
                     .msg
@@ -186,7 +179,7 @@ impl ToTokens for MessageDef<'_> {
                 // should refactor generate_mux to take SignalIdx values directly
                 // and build SignalCtx internally
                 // would make it simpler here
-                self.generate_mux(tokens, &all_ctxs, plain_ctxs, muxed_ctxs, mux_ctx);
+                self.generate_mux(tokens, &all_ctxs, muxed_ctxs, mux_ctx);
             }
         }
     }
@@ -290,7 +283,6 @@ impl MessageDef<'_> {
         &self,
         tokens: &mut TokenStream,
         signals: &Vec<SignalCtx>,
-        plain: Vec<&SignalCtx>,
         muxed: BTreeMap<u64, Vec<&SignalCtx>>,
         mux_signal: &SignalCtx,
     ) {
@@ -309,222 +301,130 @@ impl MessageDef<'_> {
 
         let len = msg.size as usize;
 
-        let plain_fields = Self::gen_fields(&plain);
-        let plain_getters = Self::gen_getters(&plain);
-        let plain_setters = Self::gen_setters(&plain);
-        let plain_constructor_params = Self::gen_constructor_params(&plain);
-        let plain_constructor_fields = Self::gen_constructor_fields(&plain);
-        let plain_constructor_validations = Self::gen_constructor_validations(&plain);
+        let all_signals: Vec<&SignalCtx> = signals.iter().collect();
 
-        let constructor = quote! {
-            pub fn new(
-                #( #plain_constructor_params, )*
-                mux: #mux_enum_name
-            ) -> Result<Self, CanError> {
+        let constructor_params = Self::gen_constructor_params(&all_signals);
+        let constructor_body = Self::gen_constructor_body(&all_signals);
 
-                let mut msg = Self {
-                    #( #plain_constructor_fields, )*
-                    mux,
-                };
-
-                #( #plain_constructor_validations )*
-
-                Ok(msg)
-            }
-        };
-
-        let plain_reads = Self::gen_reads(&plain);
-        let plain_init = Self::gen_decode_fields(&plain);
-        let plain_writes = Self::gen_writes(&plain);
-
-        let mux_structs = muxed.iter().map(|(v, sigs)| {
-            let struct_name = format_ident!("{}Mux{}", name, v);
-
-            let fields = Self::gen_fields(&sigs);
-            let constructor_params = Self::gen_constructor_params(&sigs);
-            let constructor_fields = Self::gen_constructor_fields(&sigs);
-            let constructor_validations = Self::gen_constructor_validations(&sigs);
-
-            let getters = Self::gen_getters(&sigs);
-            let setters = Self::gen_setters(&sigs);
-
-            let reads = Self::gen_reads(&sigs);
-            let inits = Self::gen_decode_fields(&sigs);
-            let writes = Self::gen_writes(&sigs);
-
-            quote! {
-                #[derive(Debug, Clone)]
-                pub struct #struct_name {
-                    #( #fields, )*
-                }
-
-                impl #struct_name {
-
-                    pub fn new(
-                        #( #constructor_params ),*
-                    ) -> Result<Self, CanError> {
-
-                        let mut msg = Self {
-                            #( #constructor_fields ),*
-                        };
-
-                        #( #constructor_validations )*
-
-                        Ok(msg)
-                    }
-
-                    #( #getters )*
-
-                    #( #setters )*
-
-                    fn decode_from(data: &[u8]) -> Result<Self, CanError> {
-
-                        #( #reads )*
-
-                        Ok(Self {
-                            #( #inits, )*
-                        })
-                    }
-
-                    fn encode_into(&self, data: &mut [u8]) {
-                        #( #writes )*
-                    }
-                }
-            }
-        });
+        let getters = Self::gen_getters(&all_signals);
+        let setters = Self::gen_setters(&all_signals);
 
         let mux_variants = muxed.keys().map(|v| {
-            let struct_name = format_ident!("{}Mux{}", name, v);
             let variant = format_ident!("V{}", v);
-
-            quote! { #variant(#struct_name) }
-        });
-
-        let mux_raw_ty = mux_signal.raw_rust_type();
-        let (mux_start, mux_end) = mux_signal.start_end_bit();
-        let mux_order = mux_signal.bitvec_order();
-
-        let mux_encode_arms = muxed.keys().map(|v| {
-            let variant = format_ident!("V{}", v);
-            let mux_store = mux_signal.store_fn();
-
-            quote! {
-                #mux_enum_name::#variant(inner) => {
-
-                    data.view_bits_mut::<#mux_order>()[#mux_start..#mux_end]
-                        .#mux_store(#v as #mux_raw_ty);
-
-                    inner.encode_into(&mut data);
-                }
-            }
+            quote! { #variant }
         });
 
         let mux_read = mux_signal.decode_read();
-        let mux_raw = mux_signal.raw_ident();
+        let mux_expr = mux_signal.decode_expr();
 
-        let mux_decode_arms = muxed.keys().map(|v| {
-            let lit = mux_signal.signal.physical_type.literal(*v as i64);
-            let struct_name = format_ident!("{}Mux{}", name, v);
+        let mux_match_arms = muxed.keys().map(|v| {
             let variant = format_ident!("V{}", v);
+            let lit = mux_signal.signal.physical_type.literal(*v as i64);
 
             quote! {
-                #lit => #mux_enum_name::#variant(#struct_name::decode_from(data)?)
+                #lit => Ok(#mux_enum_name::#variant)
             }
         });
 
-        let doc = message_doc(&msg);
+        let mux_getter = quote! {
+            pub fn mux(&self) -> Result<#mux_enum_name, CanError> {
+                let data = &self.data;
 
-        let struct_def = quote! {
-            #doc
-            #[derive(Debug, Clone)]
-            pub struct #name {
-                #( #plain_fields, )*
-                pub mux: #mux_enum_name,
+                #mux_read
+
+                let val = #mux_expr;
+
+                match val {
+                    #( #mux_match_arms, )*
+                    _ => Err(CanError::UnknownMuxValue),
+                }
             }
         };
 
-        let trait_impl = quote! {
-            impl CanMessage<{ #name::LEN }> for #name {
+        let mux_raw_ty = mux_signal.raw_rust_type();
+        let (start, end) = mux_signal.start_end_bit();
+        let order = mux_signal.bitvec_order();
+        let store = mux_signal.store_fn();
+
+        let mux_set_arms = muxed.keys().map(|v| {
+            let variant = format_ident!("V{}", v);
+
+            quote! {
+                #mux_enum_name::#variant => {
+                    data.view_bits_mut::<#order>()[#start..#end]
+                        .#store(#v as #mux_raw_ty);
+                }
+            }
+        });
+
+        let mux_setter = quote! {
+            pub fn set_mux(&mut self, mux: #mux_enum_name) {
+                let data = &mut self.data;
+
+                match mux {
+                    #( #mux_set_arms )*
+                }
+            }
+        };
+
+        let doc = message_doc(&msg);
+
+        quote! {
+            #[derive(Debug, Clone)]
+            pub enum #mux_enum_name {
+                #( #mux_variants, )*
+            }
+
+            #doc
+            #[derive(Debug, Clone)]
+            pub struct #name {
+                data: [u8; #len],
+            }
+
+            impl #name {
+                pub const ID: Id = #id_expr;
+                pub const LEN: usize = #len;
+
+                pub fn new(
+                    #( #constructor_params ),*
+                ) -> Result<Self, CanError> {
+                    let mut msg = Self {
+                        data: [0u8; #len],
+                    };
+
+                    #constructor_body
+
+                    Ok(msg)
+                }
+
+                #mux_getter
+                #mux_setter
+
+                #( #getters )*
+                #( #setters )*
+            }
+
+            impl CanMessage<{ #len }> for #name {
 
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
-
                     let data = frame.data();
 
                     if data.len() < Self::LEN {
                         return Err(CanError::InvalidPayloadSize);
                     }
 
-                    #( #plain_reads )*
+                    let mut buf = [0u8; #len];
+                    buf.copy_from_slice(&data[..#len]);
 
-                    #mux_read
-
-                    let mux = match #mux_raw {
-
-                        #( #mux_decode_arms, )*
-
-                        _ => return Err(CanError::UnknownMuxValue),
-                    };
-
-                    Ok(Self {
-                        #( #plain_init, )*
-                        mux,
-                    })
+                    Ok(Self { data: buf })
                 }
 
-                fn encode(&self) -> [u8; #name::LEN] {
-
-                    let mut data = [0u8; #name::LEN];
-
-                    #( #plain_writes )*
-
-                    match &self.mux {
-                        #( #mux_encode_arms )*
-                    }
-
-                    data
+                fn encode(&self) -> [u8; #len] {
+                    self.data
                 }
             }
-        };
-
-        let impl_block = quote! {
-            impl #name {
-
-                pub const ID: Id = #id_expr;
-                pub const LEN: usize = #len;
-
-                #constructor
-
-                #( #plain_getters )*
-
-                #( #plain_setters )*
-            }
-        };
-
-        quote! {
-            #( #mux_structs )*
-
-            #[derive(Debug, Clone)]
-            pub enum #mux_enum_name {
-                #( #mux_variants, )*
-            }
-
-            #struct_def
-
-            #impl_block
-
-            #trait_impl
         }
         .to_tokens(tokens);
-    }
-
-    fn gen_fields(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
-        signals.iter().map(|s| {
-            let field = s.field_ident();
-            let ty = s.rust_type();
-            quote! {
-                pub #field: #ty
-            }
-        })
     }
 
     fn gen_constructor_params(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
@@ -532,21 +432,6 @@ impl MessageDef<'_> {
             let field = s.field_ident();
             let ty = s.rust_type();
             quote! { #field: #ty }
-        })
-    }
-
-    fn gen_constructor_fields(signals: &[&SignalCtx]) -> impl Iterator<Item = syn::Ident> {
-        signals.iter().map(|s| s.field_ident())
-    }
-
-    fn gen_constructor_validations(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
-        signals.iter().map(|s| {
-            let field = s.field_ident();
-            let setter = s.setter_ident();
-
-            quote! {
-                msg.#setter(msg.#field)?;
-            }
         })
     }
 
@@ -594,18 +479,6 @@ impl MessageDef<'_> {
                 }
             }
         })
-    }
-
-    fn gen_reads(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
-        signals.iter().map(|s| s.decode_read())
-    }
-
-    fn gen_decode_fields(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
-        signals.iter().map(|s| s.decode_field())
-    }
-
-    fn gen_writes(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
-        signals.iter().map(|s| s.encode_write())
     }
 }
 
@@ -896,13 +769,6 @@ impl<'a> SignalCtx<'a> {
     //      are safe. dbc-codegen uses saturating_*, checked_*
     //TODO: do not perform multiplication when factor is 1
     //      do not perform addition when offset is 0
-    fn decode_field(&self) -> TokenStream {
-        let field = self.field_ident();
-        let expr = self.decode_expr();
-
-        quote! { #field: #expr }
-    }
-
     fn decode_expr(&self) -> TokenStream {
         let raw = self.raw_ident();
 
