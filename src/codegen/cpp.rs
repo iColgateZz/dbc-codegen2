@@ -5,7 +5,7 @@ use heck::ToSnakeCase;
 use crate::{
     DbcFile,
     codegen::Generator,
-    empty, end_block, end_block_no_close,
+    empty, end_block,
     ir::{
         message::{Message, MessageId, MessageSignalClassification},
         signal::Signal,
@@ -16,10 +16,12 @@ use crate::{
     line, start_block,
 };
 
+use crate::codegen::config::CodegenConfig;
+
 pub struct CppGen;
 
 impl CppGen {
-    pub fn generate(file: &DbcFile) -> String {
+    pub fn generate(file: &DbcFile, config: &CodegenConfig) -> String {
         let mut out = Generator::new();
 
         line!(out, "#pragma once");
@@ -30,7 +32,7 @@ impl CppGen {
         Self::endian_read_and_write(&mut out);
 
         for message in &file.messages {
-            Self::message(&mut out, message, file);
+            Self::message(&mut out, message, file, config);
         }
 
         Self::parse_can(&mut out, &file.messages);
@@ -56,7 +58,13 @@ impl CppGen {
     }
 
     fn errors(out: &mut Generator) {
-        const ERRORS: &[&str] = &["UnknownId", "InvalidLength", "InvalidData"];
+        const ERRORS: &[&str] = &[
+            "UnknownFrameId",
+            "UnknownMuxValue",
+            "InvalidPayloadSize",
+            "ValueOutOfRange",
+            "InvalidEnumValue"
+        ];
 
         start_block!(out, "enum class CanError : uint8_t");
         for error in ERRORS {
@@ -191,7 +199,7 @@ impl CppGen {
         empty!(out);
     }
 
-    fn signal_value_enum(out: &mut Generator, signal: &Signal, enum_def: &SignalValueEnum) {
+    fn signal_value_enum(out: &mut Generator, signal: &Signal, enum_def: &SignalValueEnum, config: &CodegenConfig) {
         let name = &signal.name.upper_camel();
         let cpp_type = &signal.physical_type.as_cpp_type();
 
@@ -223,19 +231,26 @@ impl CppGen {
                 variant.description
             );
         }
-        end_block!(
-            out,
-            "default: return std::unexpected(CanError::InvalidData);"
-        );
+        if !config.no_enum_other {
+            end_block!(
+                out,
+                "default: return static_cast<{}>(v);",
+                name
+            );
+        } else {
+            end_block!(
+                out,
+                "default: return std::unexpected(CanError::InvalidEnumValue);"
+            );
+        }
         end_block!(out, "");
         empty!(out);
     }
 
-    fn emit_signal_reads(
+    fn emit_signal_getters(
         out: &mut Generator,
         signals: &[&Signal],
         file: &DbcFile,
-        data_expr: &str,
     ) {
         for signal in signals {
             let layout = &file.signal_layouts[signal.layout.0];
@@ -247,6 +262,15 @@ impl CppGen {
             };
             let is_raw_float = matches!(signal.raw_type, RawType::Float32 | RawType::Float64);
             let is_phys_float = phys_type == "float" || phys_type == "double";
+
+            let return_type = if signal.signal_value_enum_idx.is_some() {
+                format!("std::expected<{}, CanError>", signal.name.upper_camel())
+            } else {
+                phys_type.to_string()
+            };
+
+            start_block!(out, "[[nodiscard]] {} {}() const noexcept", return_type, field_name);
+            let data_expr = "data_.data()";
 
             if signal.signal_value_enum_idx.is_some() {
                 let raw_type = signal.raw_type.as_cpp_type();
@@ -263,13 +287,7 @@ impl CppGen {
                     layout.bitvec_end
                 );
                 let from_fn = format!("{}_from_raw", signal.name.upper_camel().to_snake_case());
-                line!(out, "auto {}_exp = {}({});", field_name, from_fn, raw_name);
-                line!(
-                    out,
-                    "if (!{}_exp) return std::unexpected({}_exp.error());",
-                    field_name,
-                    field_name
-                );
+                line!(out, "return {}({});", from_fn, raw_name);
             } else if is_raw_float {
                 let uint_repr = Self::cpp_uint_repr_for_float(&signal.raw_type);
                 let (factor_str, offset_str) = if phys_type == "float" {
@@ -299,9 +317,7 @@ impl CppGen {
                 );
                 line!(
                     out,
-                    "const {} {} = {}_raw * {} + {};",
-                    phys_type,
-                    field_name,
+                    "return {}_raw * {} + {};",
                     field_name,
                     factor_str,
                     offset_str
@@ -327,9 +343,7 @@ impl CppGen {
                 );
                 line!(
                     out,
-                    "const {} {} = static_cast<{}>({}) * {} + {};",
-                    phys_type,
-                    field_name,
+                    "return static_cast<{}>({}) * {} + {};",
                     phys_type,
                     raw_name,
                     factor_str,
@@ -351,23 +365,45 @@ impl CppGen {
                 );
                 line!(
                     out,
-                    "const {} {} = static_cast<{}>({}) * {} + {};",
-                    phys_type,
-                    field_name,
+                    "return static_cast<{}>({}) * {} + {};",
                     phys_type,
                     raw_name,
                     layout.factor as i64,
                     layout.offset as i64
                 );
             }
+            end_block!(out, "");
+            empty!(out);
         }
     }
 
-    fn emit_signal_writes(
+    fn emit_setter_range_check(out: &mut Generator, signal: &Signal, file: &DbcFile, config: &CodegenConfig, field_name: &str) {
+        if signal.signal_value_enum_idx.is_some() {
+            return;
+        }
+
+        let layout = &file.signal_layouts[signal.layout.0];
+        let min = layout.min;
+        let max = layout.max;
+
+        if config.zero_zero_range_allows_all && min == max && min == 0.0 {
+            return;
+        }
+
+        let phys_type = signal.physical_type.as_cpp_type();
+        let is_phys_float = phys_type == "float" || phys_type == "double";
+        
+        let min_str = if is_phys_float { format!("{min}f") } else { format!("{}", min as i64) };
+        let max_str = if is_phys_float { format!("{max}f") } else { format!("{}", max as i64) };
+
+        line!(out, "if ({} < {} || {} > {}) return std::unexpected(CanError::ValueOutOfRange);", field_name, min_str, field_name, max_str);
+    }
+
+    fn emit_signal_setters(
         out: &mut Generator,
         signals: &[&Signal],
         file: &DbcFile,
-        data_expr: &str,
+        config: &CodegenConfig,
     ) {
         for signal in signals {
             let layout = &file.signal_layouts[signal.layout.0];
@@ -379,6 +415,17 @@ impl CppGen {
             };
             let is_raw_float = matches!(signal.raw_type, RawType::Float32 | RawType::Float64);
             let is_phys_float = phys_type == "float" || phys_type == "double";
+
+            let param_type = if signal.signal_value_enum_idx.is_some() {
+                format!("{}", signal.name.upper_camel())
+            } else {
+                phys_type.to_string()
+            };
+
+            start_block!(out, "std::expected<void, CanError> set_{}({} {}) noexcept", field_name, param_type, field_name);
+            Self::emit_setter_range_check(out, signal, file, config, &field_name);
+            
+            let data_expr = "data_.data()";
 
             if signal.signal_value_enum_idx.is_some() {
                 let raw_type = signal.raw_type.as_cpp_type();
@@ -452,7 +499,7 @@ impl CppGen {
                 let raw_type = signal.raw_type.as_cpp_type();
                 line!(
                     out,
-                    "detail::{}<{}>({}, {}, {}, static_cast<{}>(({}  - {}) / {}));",
+                    "detail::{}<{}>({}, {}, {}, static_cast<{}>(({} - {}) / {}));",
                     insert_fn,
                     raw_type,
                     data_expr,
@@ -464,236 +511,74 @@ impl CppGen {
                     layout.factor as i64
                 );
             }
+            end_block!(out, "return {{}};");
+            empty!(out);
         }
     }
 
-    fn field_inits_str(signals: &[&Signal]) -> String {
-        signals
+    fn emit_create_method(out: &mut Generator, msg_name: &str, signals: &[&Signal]) {
+        let args = signals
             .iter()
             .map(|s| {
-                let f = s.name.0.to_snake_case();
                 if s.signal_value_enum_idx.is_some() {
-                    format!(".{} = *{}_exp", f, f)
+                    format!("{} {}", s.name.upper_camel(), s.name.0.to_snake_case())
                 } else {
-                    format!(".{} = {}", f, f)
+                    format!("{} {}", s.physical_type.as_cpp_type(), s.name.0.to_snake_case())
                 }
             })
             .collect::<Vec<_>>()
-            .join(", ")
-    }
+            .join(",
+            ");
+        
+        let args_formatted = if args.is_empty() { String::new() } else { format!("
+            {}
+        ", args) };
 
-    fn emit_signal_fields(out: &mut Generator, signals: &[&Signal]) {
+        start_block!(out, "[[nodiscard]] static std::expected<{}, CanError> create({}) noexcept", msg_name, args_formatted);
+        line!(out, "{} msg{{}};", msg_name);
         for signal in signals {
-            if signal.signal_value_enum_idx.is_some() {
-                line!(
-                    out,
-                    "{} {};",
-                    signal.name.upper_camel(),
-                    signal.name.0.to_snake_case()
-                );
-            } else {
-                line!(
-                    out,
-                    "{} {};",
-                    signal.physical_type.as_cpp_type(),
-                    signal.name.lower()
-                );
-            }
+            let f = signal.name.0.to_snake_case();
+            line!(out, "if (auto r = msg.set_{}({}); !r) return std::unexpected(r.error());", f, f);
         }
-    }
-
-    fn serialize_message(out: &mut Generator, signals: &[&Signal], file: &DbcFile) {
-        start_block!(
-            out,
-            "[[nodiscard]] std::array<uint8_t, LEN> serialize() const noexcept"
-        );
-        line!(out, "std::array<uint8_t, LEN> data{{}};");
-        Self::emit_signal_writes(out, signals, file, "data.data()");
-        end_block!(out, "return data;");
+        end_block!(out, "return msg;");
         empty!(out);
     }
 
-    fn parse_message(out: &mut Generator, msg: &Message, signals: &[&Signal], file: &DbcFile) {
-        line!(
-            out,
-            "[[nodiscard]] static std::expected<{}, CanError>",
-            msg.name.upper_camel()
-        );
-        start_block!(out, "parse(std::span<const uint8_t, LEN> data) noexcept");
-
-        Self::emit_signal_reads(out, signals, file, "data.data()");
-
-        let fields_str = Self::field_inits_str(signals);
-        end_block!(
-            out,
-            "return {}{{ {} }};",
-            msg.name.upper_camel(),
-            fields_str
-        );
-        empty!(out);
-    }
-
-    fn mux_variant_struct(
+    fn mux_variant_class(
         out: &mut Generator,
         msg: &Message,
         mux_value: u64,
         signals: &[&Signal],
         file: &DbcFile,
+        config: &CodegenConfig,
     ) {
-        let struct_name = format!("{}Mux{}", msg.name.upper_camel(), mux_value);
+        let class_name = format!("{}Mux{}", msg.name.upper_camel(), mux_value);
 
-        start_block!(out, "struct {}", struct_name);
+        start_block!(out, "class {}", class_name);
 
-        Self::emit_signal_fields(out, signals);
+        line!(out, "public:");
+
+        line!(out, "static constexpr std::size_t LEN = {};", msg.size);
         empty!(out);
 
-        line!(
-            out,
-            "[[nodiscard]] static std::expected<{}, CanError>",
-            struct_name
-        );
-        start_block!(out, "decode_from(const uint8_t* data) noexcept");
-        Self::emit_signal_reads(out, signals, file, "data");
-        let fields_str = Self::field_inits_str(signals);
-        end_block!(out, "return {}{{ {} }};", struct_name, fields_str);
+        Self::emit_create_method(out, &class_name, signals);
+
+        Self::emit_signal_getters(out, signals, file);
+        Self::emit_signal_setters(out, signals, file, config);
+
+        line!(out, "[[nodiscard]] std::array<uint8_t, LEN> encode() const noexcept {{ return data_; }}");
         empty!(out);
 
-        start_block!(out, "void encode_into(uint8_t* data) const noexcept");
-        Self::emit_signal_writes(out, signals, file, "data");
-        end_block!(out, "");
-        empty!(out);
-
-        end_block!(out, "");
-        empty!(out);
-    }
-
-    fn parse_mux_message(
-        out: &mut Generator,
-        msg: &Message,
-        plain: &[&Signal],
-        mux_signal: &Signal,
-        muxed: &BTreeMap<u64, Vec<&Signal>>,
-        file: &DbcFile,
-    ) {
-        let msg_name = msg.name.upper_camel();
-
-        line!(
-            out,
-            "[[nodiscard]] static std::expected<{}, CanError>",
-            msg_name
-        );
-        start_block!(out, "parse(std::span<const uint8_t, LEN> data) noexcept");
-
-        Self::emit_signal_reads(out, plain, file, "data.data()");
-
-        let mux_layout = &file.signal_layouts[mux_signal.layout.0];
-        let mux_raw_type = mux_signal.raw_type.as_cpp_type();
-        let mux_extract_fn = match mux_layout.byte_order {
-            ByteOrder::LittleEndian => "extract_le",
-            ByteOrder::BigEndian => "extract_be",
-        };
-        line!(
-            out,
-            "const {} mux_raw = detail::{}<{}>({}, {}, {});",
-            mux_raw_type,
-            mux_extract_fn,
-            mux_raw_type,
-            "data.data()",
-            mux_layout.bitvec_start,
-            mux_layout.bitvec_end
-        );
-
-        let plain_fields = Self::field_inits_str(plain);
-        let plain_prefix = if plain_fields.is_empty() {
-            String::new()
-        } else {
-            format!("{}, ", plain_fields)
-        };
-
-        start_block!(out, "switch (mux_raw)");
-        for (mux_value, _) in muxed {
-            let variant_struct = format!("{}Mux{}", msg_name, mux_value);
-            line!(out, "case {}:", mux_value);
-            start_block!(out, "");
-            line!(
-                out,
-                "auto inner = {}::decode_from(data.data());",
-                variant_struct
-            );
-            line!(out, "if (!inner) return std::unexpected(inner.error());");
-            line!(
-                out,
-                "return {}{{ {}.mux = std::move(*inner) }};",
-                msg_name,
-                plain_prefix,
-            );
-            end_block!(out, "");
-        }
-        end_block!(
-            out,
-            "default: return std::unexpected(CanError::InvalidData);"
-        );
+        // Required for multiplex setter
+        line!(out, "private:");
+        line!(out, "friend class {};", msg.name.upper_camel());
+        line!(out, "std::array<uint8_t, LEN> data_{{}};");
 
         end_block!(out, "");
         empty!(out);
     }
 
-    fn serialize_mux_message(
-        out: &mut Generator,
-        msg: &Message,
-        plain: &[&Signal],
-        mux_signal: &Signal,
-        muxed: &BTreeMap<u64, Vec<&Signal>>,
-        file: &DbcFile,
-    ) {
-        let msg_name = msg.name.upper_camel();
-
-        start_block!(
-            out,
-            "[[nodiscard]] std::array<uint8_t, LEN> serialize() const noexcept"
-        );
-        line!(out, "std::array<uint8_t, LEN> data{{}};");
-
-        Self::emit_signal_writes(out, plain, file, "data.data()");
-
-        let mux_layout = &file.signal_layouts[mux_signal.layout.0];
-        let mux_raw_type = mux_signal.raw_type.as_cpp_type();
-        let mux_insert_fn = match mux_layout.byte_order {
-            ByteOrder::LittleEndian => "insert_le",
-            ByteOrder::BigEndian => "insert_be",
-        };
-
-        start_block!(out, "std::visit([&data](const auto& inner) noexcept");
-
-        for (mux_value, _) in muxed {
-            let variant_struct = format!("{}Mux{}", msg_name, mux_value);
-            start_block!(
-                out,
-                "if constexpr (std::is_same_v<std::decay_t<decltype(inner)>, {}>)",
-                variant_struct
-            );
-            line!(
-                out,
-                "detail::{}<{}>({}, {}, {}, static_cast<{}>({}));",
-                mux_insert_fn,
-                mux_raw_type,
-                "data.data()",
-                mux_layout.bitvec_start,
-                mux_layout.bitvec_end,
-                mux_raw_type,
-                mux_value
-            );
-            line!(out, "inner.encode_into(data.data());");
-            end_block!(out, "");
-        }
-
-        end_block_no_close!(out, "}}, mux);");
-
-        end_block!(out, "return data;");
-        empty!(out);
-    }
-
-    fn message(out: &mut Generator, msg: &Message, file: &DbcFile) {
+    fn message(out: &mut Generator, msg: &Message, file: &DbcFile, config: &CodegenConfig) {
         let all_signals: Vec<&Signal> = msg
             .signal_idxs
             .iter()
@@ -702,25 +587,43 @@ impl CppGen {
 
         for signal in &all_signals {
             if let Some(idx) = &signal.signal_value_enum_idx {
-                Self::signal_value_enum(out, signal, &file.signal_value_enums[idx.0]);
+                Self::signal_value_enum(out, signal, &file.signal_value_enums[idx.0], config);
             }
         }
 
         match msg.classify_signals(&file.signals) {
             MessageSignalClassification::Plain { signals } => {
                 let sigs: Vec<&Signal> = signals.iter().map(|idx| &file.signals[idx.0]).collect();
+                let msg_name = msg.name.upper_camel();
 
-                start_block!(out, "struct {}", msg.name.upper_camel());
+                start_block!(out, "class {}", msg_name);
+                line!(out, "public:");
+                
                 match msg.id {
                     MessageId::Standard(id) => line!(out, "static constexpr uint16_t ID = {};", id),
                     MessageId::Extended(id) => line!(out, "static constexpr uint32_t ID = {};", id),
                 }
                 line!(out, "static constexpr std::size_t LEN = {};", msg.size);
                 empty!(out);
-                Self::emit_signal_fields(out, &sigs);
+                
+                Self::emit_create_method(out, &msg_name, &sigs);
+
+                start_block!(out, "[[nodiscard]] static std::expected<{}, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept", msg_name);
+                line!(out, "if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);");
+                line!(out, "{} msg{{}};", msg_name);
+                line!(out, "std::memcpy(msg.data_.data(), frame.data(), LEN);");
+                end_block!(out, "return msg;");
                 empty!(out);
-                Self::parse_message(out, msg, &sigs, file);
-                Self::serialize_message(out, &sigs, file);
+                
+                Self::emit_signal_getters(out, &sigs, file);
+                Self::emit_signal_setters(out, &sigs, file, config);
+
+                line!(out, "[[nodiscard]] std::array<uint8_t, LEN> encode() const noexcept {{ return data_; }}");
+                empty!(out);
+
+                line!(out, "private:");
+                line!(out, "std::array<uint8_t, LEN> data_{{}};");
+
                 end_block!(out, "");
                 empty!(out);
             }
@@ -742,7 +645,7 @@ impl CppGen {
                 let mux_enum_name = format!("{}Mux", msg_name);
 
                 for (mux_value, sigs) in &muxed_sigs {
-                    Self::mux_variant_struct(out, msg, *mux_value, sigs, file);
+                    Self::mux_variant_class(out, msg, *mux_value, sigs, file, config);
                 }
 
                 let variant_types = muxed_sigs
@@ -758,19 +661,80 @@ impl CppGen {
                 );
                 empty!(out);
 
-                start_block!(out, "struct {}", msg_name);
+                start_block!(out, "class {}", msg_name);
+                line!(out, "public:");
+                
                 match msg.id {
                     MessageId::Standard(id) => line!(out, "static constexpr uint16_t ID = {};", id),
                     MessageId::Extended(id) => line!(out, "static constexpr uint32_t ID = {};", id),
                 }
                 line!(out, "static constexpr std::size_t LEN = {};", msg.size);
                 empty!(out);
-                Self::emit_signal_fields(out, &plain_sigs);
-                line!(out, "{} mux;", mux_enum_name);
+                
+                start_block!(out, "[[nodiscard]] static std::expected<{}, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept", msg_name);
+                line!(out, "if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);");
+                line!(out, "{} msg{{}};", msg_name);
+                line!(out, "std::memcpy(msg.data_.data(), frame.data(), LEN);");
+                end_block!(out, "return msg;");
                 empty!(out);
-                Self::parse_mux_message(out, msg, &plain_sigs, mux_sig, &muxed_sigs, file);
-                Self::serialize_mux_message(out, msg, &plain_sigs, mux_sig, &muxed_sigs, file);
+                
+                Self::emit_signal_getters(out, &plain_sigs, file);
+                Self::emit_signal_setters(out, &plain_sigs, file, config);
+
+                let mux_layout = &file.signal_layouts[mux_sig.layout.0];
+                let mux_raw_type = mux_sig.raw_type.as_cpp_type();
+                let mux_extract_fn = match mux_layout.byte_order {
+                    ByteOrder::LittleEndian => "extract_le",
+                    ByteOrder::BigEndian => "extract_be",
+                };
+                let mux_insert_fn = match mux_layout.byte_order {
+                    ByteOrder::LittleEndian => "insert_le",
+                    ByteOrder::BigEndian => "insert_be",
+                };
+                
+                // Mux Getter
+                start_block!(out, "[[nodiscard]] std::expected<{}, CanError> mux() const noexcept", mux_enum_name);
+                line!(out, "const {} mux_raw = detail::{}<{}>({}, {}, {});", 
+                    mux_raw_type, mux_extract_fn, mux_raw_type, "data_.data()", mux_layout.bitvec_start, mux_layout.bitvec_end);
+                start_block!(out, "switch (mux_raw)");
+                for (mux_value, _) in &muxed_sigs {
+                    let variant_class = format!("{}Mux{}", msg_name, mux_value);
+                    start_block!(out, "case {}:", mux_value);
+                    line!(out, "{} inner{{}};", variant_class);
+                    line!(out, "std::memcpy(inner.data_.data(), data_.data(), LEN);");
+                    end_block!(out, "return inner;");
+                }
+                end_block!(out, "default: return std::unexpected(CanError::UnknownMuxValue);");
                 end_block!(out, "");
+                empty!(out);
+                
+                // Mux Setters
+                for (mux_value, _) in &muxed_sigs {
+                    let variant_class = format!("{}Mux{}", msg_name, mux_value);
+                    start_block!(out, "void set_mux_{}(const {}& value) noexcept", mux_value, variant_class);
+                    line!(out, "for (std::size_t i = 0; i < LEN; ++i) data_[i] |= value.data_[i];");
+                    line!(
+                        out,
+                        "detail::{}<{}>({}, {}, {}, static_cast<{}>({}));",
+                        mux_insert_fn,
+                        mux_raw_type,
+                        "data_.data()",
+                        mux_layout.bitvec_start,
+                        mux_layout.bitvec_end,
+                        mux_raw_type,
+                        mux_value
+                    );
+                    end_block!(out, "");
+                }
+                empty!(out);
+
+                line!(out, "[[nodiscard]] std::array<uint8_t, LEN> encode() const noexcept {{ return data_; }}");
+                empty!(out);
+
+                line!(out, "private:");
+                line!(out, "std::array<uint8_t, LEN> data_{{}};");
+
+                end_block!(out, ";");
                 empty!(out);
             }
         }
@@ -789,7 +753,7 @@ impl CppGen {
         line!(out, "inline std::expected<CanMsg, CanError>");
         start_block!(
             out,
-            "parse_can(uint32_t id, std::span<const uint8_t> data) noexcept"
+            "parse_can(uint32_t id, std::span<const uint8_t> frame) noexcept"
         );
 
         start_block!(out, "switch (id)");
@@ -800,14 +764,7 @@ impl CppGen {
             start_block!(out, "");
             line!(
                 out,
-                "if (data.size() < {}::LEN) return std::unexpected(CanError::InvalidLength);",
-                name
-            );
-            line!(
-                out,
-                "auto r = {}::parse(std::span<const uint8_t, {}::LEN>(data.data(), {}::LEN));",
-                name,
-                name,
+                "auto r = {}::try_from_frame(frame);",
                 name
             );
             line!(out, "if (!r) return std::unexpected(r.error());");
@@ -815,7 +772,7 @@ impl CppGen {
             end_block!(out, "");
         }
 
-        end_block!(out, "default: return std::unexpected(CanError::UnknownId);");
+        end_block!(out, "default: return std::unexpected(CanError::UnknownFrameId);");
         end_block!(out, "");
     }
 }

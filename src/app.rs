@@ -45,7 +45,7 @@ impl App {
 
         let code = match config.lang {
             Language::Rust => codegen::rust::RustGen::generate(&dbc, &config),
-            Language::Cpp => codegen::cpp::CppGen::generate(&dbc),
+            Language::Cpp => codegen::cpp::CppGen::generate(&dbc, &config),
         };
 
         let ext = config.lang.file_extension();
