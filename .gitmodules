@@ -1,3 +1,0 @@
-[submodule "shared-test-files"]
-	path = shared-test-files
-	url = https://github.com/oxibus/shared-test-files.git
