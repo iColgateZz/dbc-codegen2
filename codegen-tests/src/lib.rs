@@ -37,8 +37,12 @@ impl Drop for GeneratedFileGuard {
     }
 }
 
+const DBC_DIR: &str = "./shared-test-files";
+const GENERATED_FILE: &str = "../data/generated.rs";
+const VALIDATOR_CRATE: &str = "codegen-validator";
+
 fn _dbc_files() -> Vec<PathBuf> {
-    let base = Path::new("./shared-test-files");
+    let base = Path::new(DBC_DIR);
     let mut files = Vec::new();
 
     fn visit(dir: &Path, files: &mut Vec<PathBuf>) {
@@ -59,7 +63,6 @@ fn _dbc_files() -> Vec<PathBuf> {
 }
 
 fn _run_codegen(input: &Path) -> Result<()> {
-    let output_path = "../data/generated.rs";
     let input_str = input
         .to_str()
         .context("Invalid UTF-8 in input path")?
@@ -67,7 +70,7 @@ fn _run_codegen(input: &Path) -> Result<()> {
 
     let config = CodegenConfig {
         input: input_str,
-        output: output_path.into(),
+        output: GENERATED_FILE.into(),
         lang: Language::Rust,
         no_enum_other: false,
         no_enum_dedup: false,
@@ -80,7 +83,7 @@ fn _run_codegen(input: &Path) -> Result<()> {
 
 fn _cargo_check_data_crate() -> Result<()> {
     let status = Command::new("cargo")
-        .args(["check", "-p", "codegen-validator"])
+        .args(["check", "-p", VALIDATOR_CRATE])
         .status()
         .context("failed to run cargo check")?;
 
@@ -93,7 +96,7 @@ fn _cargo_check_data_crate() -> Result<()> {
 
 #[test]
 fn test_all_dbc_files() -> Result<()> {
-    let _guard = GeneratedFileGuard::new("../data/generated.rs".into())
+    let _guard = GeneratedFileGuard::new(GENERATED_FILE.into())
         .context("Failed to create file guard")?;
 
     let files = _dbc_files();
@@ -110,7 +113,7 @@ fn test_all_dbc_files() -> Result<()> {
                     .with_context(|| format!("Codegen failed for {:?}", file))?;
 
                 Command::new("cargo")
-                    .args(["clean", "-p", "codegen-validator"])
+                    .args(["clean", "-p", VALIDATOR_CRATE])
                     .status()
                     .ok();
 
