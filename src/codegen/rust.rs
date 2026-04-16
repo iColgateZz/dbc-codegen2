@@ -1,4 +1,4 @@
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use syn::File;
 
@@ -335,12 +335,12 @@ impl MessageDef<'_> {
         });
 
         let mux_read = mux_signal.decode_read();
-        let mux_expr = mux_signal.decode_expr();
+        let raw_ident = mux_signal.raw_ident();
 
         let mux_match_arms = muxed.keys().map(|idx| {
             let variant = format_ident!("V{}", idx);
             let struct_name = format_ident!("{}Mux{}", name, idx);
-            let lit = mux_signal.signal.physical_type.literal(*idx as i64);
+            let lit = syn::LitInt::new(&format!("{}", idx), Span::call_site());
 
             quote! {
                 #lit => Ok(#mux_enum::#variant(#struct_name { data: self.data }))
@@ -350,9 +350,8 @@ impl MessageDef<'_> {
         let mux_getter = quote! {
             pub fn mux(&self) -> Result<#mux_enum, CanError> {
                 #mux_read
-                let val = #mux_expr;
 
-                match val {
+                match #raw_ident {
                     #( #mux_match_arms, )*
                     _ => Err(CanError::UnknownMuxValue),
                 }
