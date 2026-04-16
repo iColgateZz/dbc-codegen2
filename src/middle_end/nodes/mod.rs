@@ -7,6 +7,7 @@ pub mod sve_name_prefixer;
 pub mod sve_type_attacher;
 pub mod check;
 pub mod zero_zero_range_checker;
+pub mod msg_name_sanitizer;
 
 pub use sve_variant_sanitizer::*;
 pub use signal_type_inferer::*;
@@ -17,3 +18,4 @@ pub use sve_name_prefixer::*;
 pub use sve_type_attacher::*;
 pub use check::*;
 pub use zero_zero_range_checker::*;
+pub use msg_name_sanitizer::*;
