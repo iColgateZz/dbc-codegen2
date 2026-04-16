@@ -451,8 +451,6 @@ impl MessageDef<'_> {
             quote! {
                 #doc
                 pub fn #field(&self) -> #ty {
-                    let data = &self.data;
-
                     #read
 
                     #expr
@@ -463,7 +461,6 @@ impl MessageDef<'_> {
 
     fn gen_setters(signals: &[&SignalCtx]) -> impl Iterator<Item = TokenStream> {
         signals.iter().map(|s| {
-            let field = s.field_ident();
             let setter = s.setter_ident();
             let ty = s.rust_type();
             let check = s.range_check();
@@ -472,10 +469,6 @@ impl MessageDef<'_> {
             quote! {
                 pub fn #setter(&mut self, value: #ty) -> Result<(), CanError> {
                     #check
-
-                    let data = &mut self.data;
-
-                    let #field = value;
 
                     #write
 
@@ -760,12 +753,12 @@ impl<'a> SignalCtx<'a> {
 
         if self.is_enum() || !self.is_float() {
             let raw_ty = self.raw_rust_type();
-            quote! { let #raw = data.view_bits::<#order>()[#start..#end].#load::<#raw_ty>(); }
+            quote! { let #raw = self.data.view_bits::<#order>()[#start..#end].#load::<#raw_ty>(); }
         } else {
             // bitvec cannot read f32/f64 from bits. Code finds the best fitting unsigned type
             // and reads data into the type. The data is later casted to the correct float type.
             let int_ty = self.int_repr_for_float();
-            quote! { let #raw = data.view_bits::<#order>()[#start..#end].#load::<#int_ty>(); }
+            quote! { let #raw = self.data.view_bits::<#order>()[#start..#end].#load::<#int_ty>(); }
         }
     }
 
@@ -795,27 +788,26 @@ impl<'a> SignalCtx<'a> {
     //TODO: do not perform division when factor is 1
     //      do not perform subtraction when offset is 0
     fn encode_write(&self) -> TokenStream {
-        let field = self.field_ident();
         let (start, end) = self.start_end_bit();
         let order = self.bitvec_order();
         let store = self.store_fn();
 
         if self.is_enum() {
             let ty = self.raw_rust_type();
-            quote! { data.view_bits_mut::<#order>()[#start..#end].#store(#ty::from(#field)); }
+            quote! { self.data.view_bits_mut::<#order>()[#start..#end].#store(#ty::from(value)); }
         } else if self.is_float() {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             // bitvec does not work with floats. See comment in decode_read!
             let int_ty = self.int_repr_for_float();
             quote! {
-                data.view_bits_mut::<#order>()[#start..#end].#store(((#field - (#offset)) / (#factor)) as #int_ty);
+                self.data.view_bits_mut::<#order>()[#start..#end].#store(((value - (#offset)) / (#factor)) as #int_ty);
             }
         } else {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             quote! {
-                data.view_bits_mut::<#order>()[#start..#end].#store((#field - (#offset)) / (#factor));
+                self.data.view_bits_mut::<#order>()[#start..#end].#store((value - (#offset)) / (#factor));
             }
         }
     }
