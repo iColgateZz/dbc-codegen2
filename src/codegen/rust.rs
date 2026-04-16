@@ -567,7 +567,7 @@ impl<'a> SignalValueEnumCtx<'a> {
             impl TryFrom<#rust_type> for #enum_name {
                 type Error = CanError;
 
-                fn try_from(val: #rust_type) -> Result<Self, Self::Error> {
+                fn try_from(val: #rust_type) -> Result<Self, CanError> {
                     Ok(match val {
                         #( #from_arms, )*
                         _ => return Err(CanError::IvalidEnumValue),

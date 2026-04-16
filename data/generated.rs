@@ -10,27 +10,44 @@ pub enum CanError {
     IvalidEnumValue,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EnableEnum {
-    Disabled,
-    D,
-}
-impl TryFrom<u8> for EnableEnum {
+pub enum EmptyChoiceEnum {}
+impl TryFrom<i8> for EmptyChoiceEnum {
     type Error = CanError;
-    fn try_from(val: u8) -> Result<Self, Self::Error> {
+    fn try_from(val: i8) -> Result<Self, CanError> {
         Ok(
             match val {
-                0u8 => EnableEnum::Disabled,
-                1u8 => EnableEnum::D,
                 _ => return Err(CanError::IvalidEnumValue),
             },
         )
     }
 }
-impl From<EnableEnum> for u8 {
-    fn from(val: EnableEnum) -> Self {
+impl From<EmptyChoiceEnum> for i8 {
+    fn from(val: EmptyChoiceEnum) -> Self {
+        match val {}
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NonEmptyChoiceEnum {
+    NotAvailable,
+    Error,
+}
+impl TryFrom<i8> for NonEmptyChoiceEnum {
+    type Error = CanError;
+    fn try_from(val: i8) -> Result<Self, CanError> {
+        Ok(
+            match val {
+                -1i8 => NonEmptyChoiceEnum::NotAvailable,
+                -2i8 => NonEmptyChoiceEnum::Error,
+                _ => return Err(CanError::IvalidEnumValue),
+            },
+        )
+    }
+}
+impl From<NonEmptyChoiceEnum> for i8 {
+    fn from(val: NonEmptyChoiceEnum) -> Self {
         match val {
-            EnableEnum::Disabled => 0u8,
-            EnableEnum::D => 1u8,
+            NonEmptyChoiceEnum::NotAvailable => -1i8,
+            NonEmptyChoiceEnum::Error => -2i8,
         }
     }
 }
@@ -53,107 +70,100 @@ impl Msg {
         Ok(result)
     }
 }
-///ExampleMessage_MSG
-///- ID: Standard 496 (0x1F0)
-///- Size: 8 bytes
-///- Transmitter: PCM1
-///
-///Example message used as template in MotoHawk models.
+///example_message_MSG
+///- ID: Standard 10 (0xA)
+///- Size: 3 bytes
+///- Transmitter: tx_node
 #[derive(Debug, Clone)]
 pub struct ExampleMessageMsg {
-    data: [u8; 8usize],
+    data: [u8; 3usize],
 }
 impl ExampleMessageMsg {
-    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(496u16) });
-    pub const LEN: usize = 8usize;
+    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(10u16) });
+    pub const LEN: usize = 3usize;
     pub fn new(
-        temperature: f64,
-        average_radius: f64,
-        enable: EnableEnum,
+        no_choice: i8,
+        empty_choice: EmptyChoiceEnum,
+        non_empty_choice: NonEmptyChoiceEnum,
     ) -> Result<Self, CanError> {
         let mut msg = Self { data: [0u8; Self::LEN] };
-        msg.set_temperature(temperature)?;
-        msg.set_average_radius(average_radius)?;
-        msg.set_enable(enable)?;
+        msg.set_no_choice(no_choice)?;
+        msg.set_empty_choice(empty_choice)?;
+        msg.set_non_empty_choice(non_empty_choice)?;
         Ok(msg)
     }
-    ///Temperature
-    ///- Min: 229.52
-    ///- Max: 270.47
-    ///- Unit: degK
-    ///- Receivers: PCM1, FOO
-    ///- Start bit: 7
-    ///- Size: 12 bits
-    ///- Factor: 0.01
-    ///- Offset: 250
-    ///- Byte order: BigEndian
-    ///- Type: signed
-    ///
-    ///Temperature with a really long and complicated comment that probably require many many lines in a decently wide terminal
-    pub fn temperature(&self) -> f64 {
-        let raw_temperature = self
-            .data
-            .view_bits::<Msb0>()[7usize..19usize]
-            .load_be::<u16>();
-        (raw_temperature as f64) * (0.01f64) + (250f64)
-    }
-    ///AverageRadius
-    ///- Min: 0
-    ///- Max: 5
-    ///- Unit: m
-    ///- Receivers: VectorXXX
-    ///- Start bit: 1
-    ///- Size: 6 bits
-    ///- Factor: 0.1
-    ///- Offset: 0
-    ///- Byte order: BigEndian
-    ///- Type: unsigned
-    ///
-    ///AverageRadius signal comment
-    pub fn average_radius(&self) -> f64 {
-        let raw_average_radius = self
-            .data
-            .view_bits::<Msb0>()[1usize..7usize]
-            .load_be::<u8>();
-        (raw_average_radius as f64) * (0.1f64) + (0f64)
-    }
-    ///Enable
+    ///no_choice
     ///- Min: 0
     ///- Max: 0
-    ///- Unit: -
+    ///- Unit:
     ///- Receivers: VectorXXX
-    ///- Start bit: 0
-    ///- Size: 1 bits
+    ///- Start bit: 16
+    ///- Size: 8 bits
     ///- Factor: 1
     ///- Offset: 0
-    ///- Byte order: BigEndian
-    ///- Type: unsigned
-    ///
-    ///Enable signal comment
-    pub fn enable(&self) -> Result<EnableEnum, CanError> {
-        let raw_enable = self.data.view_bits::<Msb0>()[0usize..1usize].load_be::<u8>();
-        Ok(EnableEnum::try_from(raw_enable as u8)?)
+    ///- Byte order: LittleEndian
+    ///- Type: signed
+    pub fn no_choice(&self) -> i8 {
+        let raw_no_choice = self
+            .data
+            .view_bits::<Lsb0>()[16usize..24usize]
+            .load_le::<i8>();
+        (raw_no_choice) * (1i8) + (0i8)
     }
-    pub fn set_temperature(&mut self, value: f64) -> Result<(), CanError> {
-        if value < 229.52f64 || value > 270.47f64 {
+    ///empty_choice
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: VectorXXX
+    ///- Start bit: 8
+    ///- Size: 8 bits
+    ///- Factor: 1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: signed
+    pub fn empty_choice(&self) -> Result<EmptyChoiceEnum, CanError> {
+        let raw_empty_choice = self
+            .data
+            .view_bits::<Lsb0>()[8usize..16usize]
+            .load_le::<i8>();
+        Ok(EmptyChoiceEnum::try_from(raw_empty_choice as i8)?)
+    }
+    ///non_empty_choice
+    ///- Min: 0
+    ///- Max: 0
+    ///- Unit:
+    ///- Receivers: VectorXXX
+    ///- Start bit: 0
+    ///- Size: 8 bits
+    ///- Factor: 1
+    ///- Offset: 0
+    ///- Byte order: LittleEndian
+    ///- Type: signed
+    pub fn non_empty_choice(&self) -> Result<NonEmptyChoiceEnum, CanError> {
+        let raw_non_empty_choice = self
+            .data
+            .view_bits::<Lsb0>()[0usize..8usize]
+            .load_le::<i8>();
+        Ok(NonEmptyChoiceEnum::try_from(raw_non_empty_choice as i8)?)
+    }
+    pub fn set_no_choice(&mut self, value: i8) -> Result<(), CanError> {
+        if value < 0i8 || value > 0i8 {
             return Err(CanError::ValueOutOfRange);
         }
         self.data
-            .view_bits_mut::<Msb0>()[7usize..19usize]
-            .store_be(((value - (250f64)) / (0.01f64)) as u16);
+            .view_bits_mut::<Lsb0>()[16usize..24usize]
+            .store_le((value - (0i8)) / (1i8));
         Ok(())
     }
-    pub fn set_average_radius(&mut self, value: f64) -> Result<(), CanError> {
-        if value < 0f64 || value > 5f64 {
-            return Err(CanError::ValueOutOfRange);
-        }
-        self.data
-            .view_bits_mut::<Msb0>()[1usize..7usize]
-            .store_be(((value - (0f64)) / (0.1f64)) as u8);
+    pub fn set_empty_choice(&mut self, value: EmptyChoiceEnum) -> Result<(), CanError> {
+        self.data.view_bits_mut::<Lsb0>()[8usize..16usize].store_le(i8::from(value));
         Ok(())
     }
-    pub fn set_enable(&mut self, value: EnableEnum) -> Result<(), CanError> {
-        self.data.view_bits_mut::<Msb0>()[0usize..1usize].store_be(u8::from(value));
+    pub fn set_non_empty_choice(
+        &mut self,
+        value: NonEmptyChoiceEnum,
+    ) -> Result<(), CanError> {
+        self.data.view_bits_mut::<Lsb0>()[0usize..8usize].store_le(i8::from(value));
         Ok(())
     }
 }
@@ -163,8 +173,8 @@ impl CanMessageTrait<{ Self::LEN }> for ExampleMessageMsg {
         if data.len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
         }
-        let mut buf = [0u8; 8usize];
-        buf.copy_from_slice(&data[..8usize]);
+        let mut buf = [0u8; 3usize];
+        buf.copy_from_slice(&data[..3usize]);
         Ok(Self { data: buf })
     }
     fn encode(&self) -> [u8; Self::LEN] {
