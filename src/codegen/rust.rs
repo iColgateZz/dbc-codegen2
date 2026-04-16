@@ -349,8 +349,6 @@ impl MessageDef<'_> {
 
         let mux_getter = quote! {
             pub fn mux(&self) -> Result<#mux_enum, CanError> {
-                let data = &self.data;
-
                 #mux_read
                 let val = #mux_expr;
 

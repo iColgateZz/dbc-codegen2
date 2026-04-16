@@ -728,7 +728,6 @@ impl SensorSonars {
     pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(200u16) });
     pub const LEN: usize = 8usize;
     pub fn mux(&self) -> Result<SensorSonarsMux, CanError> {
-        let data = &self.data;
         let raw_sensor_sonars_mux = self
             .data
             .view_bits::<Lsb0>()[0usize..4usize]
