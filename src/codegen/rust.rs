@@ -445,12 +445,23 @@ impl MessageDef<'_> {
             let read = s.decode_read();
             let expr = s.decode_expr();
 
-            quote! {
-                #doc
-                pub fn #field(&self) -> #ty {
-                    #read
+            if s.is_enum() && s.config.no_enum_other {
+                quote! {
+                    #doc
+                    pub fn #field(&self) -> Result<#ty, CanError> {
+                        #read
 
-                    #expr
+                        Ok(#expr)
+                    }
+                }
+            } else {
+                quote! {
+                    #doc
+                    pub fn #field(&self) -> #ty {
+                        #read
+
+                        #expr
+                    }
                 }
             }
         })
@@ -769,7 +780,12 @@ impl<'a> SignalCtx<'a> {
         if self.is_enum() {
             let enum_name = self.enum_ident();
             let raw_ty = self.raw_rust_type();
-            quote! { #enum_name::from(#raw as #raw_ty) }
+
+            if self.config.no_enum_other {
+                quote! { #enum_name::try_from(#raw as #raw_ty)? }
+            } else {
+                quote! { #enum_name::from(#raw as #raw_ty) }
+            }
         } else if self.is_float() {
             let factor = self.factor_literal();
             let offset = self.offset_literal();

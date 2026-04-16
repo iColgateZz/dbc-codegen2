@@ -72,7 +72,7 @@ fn _run_codegen(input: &Path) -> Result<()> {
         input: input_str,
         output: GENERATED_FILE.into(),
         lang: Language::Rust,
-        no_enum_other: false,
+        no_enum_other: true,
         no_enum_dedup: false,
         zero_zero_range_allows_all: false,
     };
