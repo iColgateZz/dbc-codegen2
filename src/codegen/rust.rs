@@ -297,9 +297,10 @@ impl MessageDef<'_> {
         let variant_structs = muxed.iter().map(|(idx, sigs)| {
             let struct_name = format_ident!("{}Mux{}", name, idx);
 
-            let ctxs: Vec<&SignalCtx> = sigs.iter().copied().collect();
-            let getters = Self::gen_getters(&ctxs);
-            let setters = Self::gen_setters(&ctxs);
+            let getters = Self::gen_getters(sigs);
+            let setters = Self::gen_setters(sigs);
+            let constructor_params = Self::gen_constructor_params(sigs);
+            let constructor_body = Self::gen_constructor_body(sigs);
 
             quote! {
                 #[derive(Debug, Clone, Default)]
@@ -308,8 +309,14 @@ impl MessageDef<'_> {
                 }
 
                 impl #struct_name {
-                    pub fn new() -> Self {
-                        Self { data: [0u8; #len] }
+                    pub fn new(
+                        #( #constructor_params ),*
+                    ) -> Result<Self, CanError> {
+                        let mut msg = Self { data: [0u8; #len] };
+
+                        #constructor_body
+
+                        Ok(msg)
                     }
 
                     #( #getters )*
@@ -374,6 +381,21 @@ impl MessageDef<'_> {
             }
         });
 
+        let plain_params = Self::gen_constructor_params(&plain);
+        let constructor_body = Self::gen_constructor_body(&plain);
+        let mux_apply_arms = muxed.keys().map(|idx| {
+            let variant = format_ident!("V{}", idx);
+            let setter = format_ident!("set_mux_{}", idx);
+
+            quote! {
+                #mux_enum::#variant(v) => {
+                    msg.#setter(v)?;
+                }
+            }
+        });
+        let plain_getters = Self::gen_getters(&plain);
+        let plain_setters = Self::gen_setters(&plain);
+
         quote! {
             #[derive(Debug, Clone)]
             pub enum #mux_enum {
@@ -392,9 +414,29 @@ impl MessageDef<'_> {
                 pub const ID: Id = #id_expr;
                 pub const LEN: usize = #len;
 
+                pub fn new(
+                    #( #plain_params, )*
+                    mux: #mux_enum
+                ) -> Result<Self, CanError> {
+                    let mut msg = Self {
+                        data: [0u8; Self::LEN],
+                    };
+
+                    #constructor_body
+
+                    match mux {
+                        #( #mux_apply_arms ),*
+                    }
+
+                    Ok(msg)
+                }
+
                 #mux_getter
 
                 #( #mux_setters )*
+
+                #( #plain_getters )*
+                #( #plain_setters )*
             }
 
             impl CanMessageTrait<{ Self::LEN }> for #name {
