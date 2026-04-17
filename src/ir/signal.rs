@@ -30,7 +30,7 @@ pub struct Signal {
 impl From<ParsedSignal> for Signal {
     fn from(value: ParsedSignal) -> Self {
         Signal {
-            name: Identifier(value.name),
+            name: Identifier::from_raw(value.name),
             multiplexer: MultiplexIndicator::from(value.multiplexer_indicator),
             unit: value.unit,
             receivers: map_into(value.receivers),
@@ -78,7 +78,7 @@ impl From<String> for Receiver {
     fn from(value: String) -> Self {
         match value.as_str() {
             "Vector__XXX" => Receiver::VectorXXX,
-            _ => Receiver::Node(Identifier(value)),
+            _ => Receiver::Node(Identifier::from_raw(value)),
         }
     }
 }

@@ -1,0 +1,3 @@
+[submodule "codegen-tests/shared-test-files"]
+	path = codegen-tests/shared-test-files
+	url = https://github.com/oxibus/shared-test-files.git

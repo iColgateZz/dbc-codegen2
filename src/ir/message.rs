@@ -27,7 +27,7 @@ impl Message {
     ) -> Self {
         Message {
             id: id.into(),
-            name: Identifier(name),
+            name: Identifier::from_raw(name),
             size: size,
             transmitter: Transmitter::from(transmitter),
             signal_idxs: signals,
@@ -93,7 +93,7 @@ pub enum Transmitter {
 impl From<ParsedTransmitter> for Transmitter {
     fn from(value: ParsedTransmitter) -> Self {
         match value {
-            ParsedTransmitter::NodeName(s) => Transmitter::Node(Identifier(s)),
+            ParsedTransmitter::NodeName(s) => Transmitter::Node(Identifier::from_raw(s)),
             ParsedTransmitter::VectorXXX => Transmitter::VectorXXX,
         }
     }

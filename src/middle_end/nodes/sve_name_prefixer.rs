@@ -20,7 +20,7 @@ impl TransformationNode for PrefixSignalValueEnumName {
                 if let Some(sve_idx) = sig.signal_value_enum_idx {
                     let sve = &mut file.signal_value_enums[sve_idx.0];
 
-                    sve.name = format!("{}{}", msg.name.0, sve.name);
+                    sve.name = format!("{}{}", msg.name.raw, sve.name);
                 }
             }
         }

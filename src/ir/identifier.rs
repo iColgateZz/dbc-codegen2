@@ -2,22 +2,32 @@ use heck::ToUpperCamelCase;
 use heck::ToSnakeCase;
 
 #[derive(Debug, Clone)]
-pub struct Identifier(pub String);
+pub struct Identifier{
+    pub raw: String,
+    pub postfix: String,
+}
 
 impl Identifier {
+    pub fn from_raw(raw: String) -> Self {
+        Self {
+            raw,
+            postfix: String::new(),
+        }
+    }
+
     pub fn raw(&self) -> &str {
-        &self.0
+        &self.raw
     }
 
     pub fn lower(&self) -> String {
-        self.0.to_lowercase()
+        format!("{}{}", self.raw, self.postfix).to_lowercase()
     }
 
     pub fn upper_camel(&self) -> String {
-        self.0.to_upper_camel_case()
+        format!("{}{}", self.raw, self.postfix).to_upper_camel_case()
     }
 
     pub fn snake_case(&self) -> String {
-        self.0.to_snake_case()
+        format!("{}{}", self.raw, self.postfix).to_snake_case()
     }
 }

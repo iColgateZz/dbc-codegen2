@@ -9,7 +9,7 @@ pub struct Node {
 impl From<ParsedNode> for Node {
     fn from(value: ParsedNode) -> Self {
         Node {
-            name: (Identifier(value.0)),
+            name: (Identifier::from_raw(value.0)),
         }
     }
 }

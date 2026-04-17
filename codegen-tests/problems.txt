@@ -1,0 +1,16 @@
+Definitely needs fixing:
+    1. ./shared-test-files/oxibus/bug_dbc-codegen_98.dbc -> enum has same name as multiplexed signal
+
+Has text encoding problems
+    1. ./shared-test-files/dbc-cantools/choices.dbc -> not valid utf8
+    2. ./shared-test-files/dbc-cantools/vehicle.dbc -> not valid utf8
+    3. ./shared-test-files/dbc-cantools/cp1252.dbc -> not valid utf8
+    4. ./shared-test-files/dbc-cantools/abs.dbc -> not valid utf8
+
+Does this need fixing?
+    1. ./shared-test-files/dbc-cantools/long_names_multiple_relations_dumped.dbc -> 2 messages have same names (1st uppercase, 2nd lowercase)
+    2. ./shared-test-files/dbc-cantools/long_names_multiple_relations.dbc -> 2 messages have same names (1st uppercase, 2nd lowercase)
+    3. ./shared-test-files/dbc-cantools/issue_199.dbc -> message, signal, enum have same names
+    4. ./shared-test-files/dbc-cantools/issue_199_extended.dbc -> message, signal, enum have same names
+    5. ./shared-test-files/dbc-cantools/multiplex_choices_dumped.dbc -> 2 enums have same names
+    6. ./shared-test-files/dbc-cantools/multiplex_choices.dbc -> 2 enums have same names
