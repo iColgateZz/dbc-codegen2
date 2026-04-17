@@ -357,7 +357,7 @@ impl MessageDef<'_> {
         };
 
         let mux_setters = muxed.keys().map(|idx| {
-            let fn_name = format_ident!("set_mux_{}", idx);
+            let fn_name = format_ident!("set_mux{}", idx);
             let struct_name = format_ident!("{}Mux{}", name, idx);
 
             let mux_raw_ty = mux_signal.raw_rust_type();
@@ -385,7 +385,7 @@ impl MessageDef<'_> {
         let constructor_body = Self::gen_constructor_body(&plain);
         let mux_apply_arms = muxed.keys().map(|idx| {
             let variant = format_ident!("V{}", idx);
-            let setter = format_ident!("set_mux_{}", idx);
+            let setter = format_ident!("set_mux{}", idx);
 
             quote! {
                 #mux_enum::#variant(v) => {
