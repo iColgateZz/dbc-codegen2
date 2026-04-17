@@ -258,12 +258,107 @@ impl CppGen {
         empty!(out);
     }
 
+    fn emit_message_doc(out: &mut Generator, msg: &Message) {
+        let name = &msg.name.raw;
+
+        let id_text = match msg.id {
+            MessageId::Standard(id) => format!("Standard {} (0x{:X})", id, id),
+            MessageId::Extended(id) => format!("Extended {} (0x{:X})", id, id),
+        };
+
+        let size = msg.size;
+        let transmitter = match &msg.transmitter {
+            crate::ir::message::Transmitter::Node(name) => name.raw.clone(),
+            crate::ir::message::Transmitter::VectorXXX => "VectorXXX".to_string(),
+        };
+
+        let mut lines = vec![
+            format!("{}", name),
+            format!("- ID: {}", id_text),
+            format!("- Size: {} bytes", size),
+            format!("- Transmitter: {}", transmitter),
+        ];
+
+        if let Some(comment) = &msg.comment {
+            lines.push("".into());
+            lines.extend(comment.lines().map(|l| l.to_string()));
+        }
+
+        line!(out, "/**");
+        for l in lines {
+            line!(out, " * {}", l);
+        }
+        line!(out, " */");
+    }
+
+    fn emit_signal_doc(out: &mut Generator, signal: &Signal, file: &DbcFile) {
+        let layout = &file.signal_layouts[signal.layout.0];
+
+        let name = &signal.name.raw;
+        let min = layout.min;
+        let max = layout.max;
+        let unit = &signal.unit;
+        let receivers = if signal.receivers.is_empty() {
+            "".into()
+        } else {
+            signal.receivers
+                .iter()
+                .map(|r| match r {
+                    crate::ir::signal::Receiver::Node(id) => id.raw.clone(),
+                    crate::ir::signal::Receiver::VectorXXX => "VectorXXX".to_string(),
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+
+        let start = layout.bitvec_start;
+        let size = layout.size;
+        let factor = layout.factor;
+        let offset = layout.offset;
+
+        let byte_order = match layout.byte_order {
+            ByteOrder::LittleEndian => "LittleEndian",
+            ByteOrder::BigEndian => "BigEndian",
+        };
+
+        let signed = match &layout.value_type {
+            crate::ir::signal_layout::ValueType::Unsigned => "unsigned",
+            crate::ir::signal_layout::ValueType::Signed => "signed",
+        };
+
+        let mut lines = vec![
+            format!("{}", name),
+            format!("- Min: {}", min),
+            format!("- Max: {}", max),
+            format!("- Unit: {}", unit),
+            format!("- Receivers: {}", receivers),
+            format!("- Start bit: {}", start),
+            format!("- Size: {} bits", size),
+            format!("- Factor: {}", factor),
+            format!("- Offset: {}", offset),
+            format!("- Byte order: {}", byte_order),
+            format!("- Type: {}", signed),
+        ];
+
+        if let Some(comment) = &signal.comment {
+            lines.push("".into());
+            lines.extend(comment.lines().map(|l| l.to_string()));
+        }
+
+        line!(out, "/**");
+        for l in lines {
+            line!(out, " * {}", l);
+        }
+        line!(out, " */");
+    }
+
     fn emit_signal_getters(
         out: &mut Generator,
         signals: &[&Signal],
         file: &DbcFile,
     ) {
         for signal in signals {
+            Self::emit_signal_doc(out, signal, file);
             let layout = &file.signal_layouts[signal.layout.0];
             let phys_type = signal.physical_type.as_cpp_type();
             let field_name = signal.name.raw.to_snake_case();
@@ -595,6 +690,7 @@ impl CppGen {
                 let sigs: Vec<&Signal> = signals.iter().map(|idx| &file.signals[idx.0]).collect();
                 let msg_name = msg.name.upper_camel();
 
+                Self::emit_message_doc(out, msg);
                 start_block!(out, "class {}", msg_name);
                 line!(out, "public:");
                 
@@ -660,6 +756,7 @@ impl CppGen {
                 );
                 empty!(out);
 
+                Self::emit_message_doc(out, msg);
                 start_block!(out, "class {}", msg_name);
                 line!(out, "public:");
                 

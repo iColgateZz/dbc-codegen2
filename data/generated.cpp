@@ -7,6 +7,7 @@
 #include <span>
 #include <variant>
 #include <utility>
+#include <cstring>
 
 enum class CanError : uint8_t {
   UnknownFrameId,
@@ -104,26 +105,47 @@ driver_heartbeat_cmd_from_raw(uint8_t v) noexcept {
   };
 };
 
-class DriverHeartbeat {
+/**
+ * DRIVER_HEARTBEAT
+ * - ID: Standard 100 (0x64)
+ * - Size: 1 bytes
+ * - Transmitter: DRIVER
+ * 
+ * Sync message used to synchronize the controllers
+ */
+class DriverHeartbeatMsg {
   public:
   static constexpr uint16_t ID = 100;
   static constexpr std::size_t LEN = 1;
   
-  [[nodiscard]] static std::expected<DriverHeartbeat, CanError> create(
+  [[nodiscard]] static std::expected<DriverHeartbeatMsg, CanError> create(
             DriverHeartbeatCmd driver_heartbeat_cmd
         ) noexcept {
-    DriverHeartbeat msg{};
+    DriverHeartbeatMsg msg{};
     if (auto r = msg.set_driver_heartbeat_cmd(driver_heartbeat_cmd); !r) return std::unexpected(r.error());
     return msg;
   };
   
-  [[nodiscard]] static std::expected<DriverHeartbeat, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
+  [[nodiscard]] static std::expected<DriverHeartbeatMsg, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
     if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);
-    DriverHeartbeat msg{};
+    DriverHeartbeatMsg msg{};
     std::memcpy(msg.data_.data(), frame.data(), LEN);
     return msg;
   };
   
+  /**
+   * DRIVER_HEARTBEAT_cmd
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: SENSOR, MOTOR
+   * - Start bit: 0
+   * - Size: 8 bits
+   * - Factor: 1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] std::expected<DriverHeartbeatCmd, CanError> driver_heartbeat_cmd() const noexcept {
     const uint8_t raw_driver_heartbeat_cmd = detail::extract_le<uint8_t>(data_.data(), 0, 8);
     return driver_heartbeat_cmd_from_raw(raw_driver_heartbeat_cmd);
@@ -154,18 +176,24 @@ io_debug_test_enum_from_raw(uint8_t v) noexcept {
   };
 };
 
-class IoDebug {
+/**
+ * IO_DEBUG
+ * - ID: Standard 500 (0x1F4)
+ * - Size: 4 bytes
+ * - Transmitter: IO
+ */
+class IoDebugMsg {
   public:
   static constexpr uint16_t ID = 500;
   static constexpr std::size_t LEN = 4;
   
-  [[nodiscard]] static std::expected<IoDebug, CanError> create(
+  [[nodiscard]] static std::expected<IoDebugMsg, CanError> create(
             uint8_t io_debug_test_unsigned,
             IoDebugTestEnum io_debug_test_enum,
             int8_t io_debug_test_signed,
             double io_debug_test_float
         ) noexcept {
-    IoDebug msg{};
+    IoDebugMsg msg{};
     if (auto r = msg.set_io_debug_test_unsigned(io_debug_test_unsigned); !r) return std::unexpected(r.error());
     if (auto r = msg.set_io_debug_test_enum(io_debug_test_enum); !r) return std::unexpected(r.error());
     if (auto r = msg.set_io_debug_test_signed(io_debug_test_signed); !r) return std::unexpected(r.error());
@@ -173,28 +201,80 @@ class IoDebug {
     return msg;
   };
   
-  [[nodiscard]] static std::expected<IoDebug, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
+  [[nodiscard]] static std::expected<IoDebugMsg, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
     if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);
-    IoDebug msg{};
+    IoDebugMsg msg{};
     std::memcpy(msg.data_.data(), frame.data(), LEN);
     return msg;
   };
   
+  /**
+   * IO_DEBUG_test_unsigned
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DBG
+   * - Start bit: 0
+   * - Size: 8 bits
+   * - Factor: 1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] uint8_t io_debug_test_unsigned() const noexcept {
     const uint8_t raw_io_debug_test_unsigned = detail::extract_le<uint8_t>(data_.data(), 0, 8);
     return static_cast<uint8_t>(raw_io_debug_test_unsigned) * 1 + 0;
   };
   
+  /**
+   * IO_DEBUG_test_enum
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DBG
+   * - Start bit: 8
+   * - Size: 8 bits
+   * - Factor: 1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] std::expected<IoDebugTestEnum, CanError> io_debug_test_enum() const noexcept {
     const uint8_t raw_io_debug_test_enum = detail::extract_le<uint8_t>(data_.data(), 8, 16);
     return io_debug_test_enum_from_raw(raw_io_debug_test_enum);
   };
   
+  /**
+   * IO_DEBUG_test_signed
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DBG
+   * - Start bit: 16
+   * - Size: 8 bits
+   * - Factor: 1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: signed
+   */
   [[nodiscard]] int8_t io_debug_test_signed() const noexcept {
     const int8_t raw_io_debug_test_signed = detail::extract_le<int8_t>(data_.data(), 16, 24);
     return static_cast<int8_t>(raw_io_debug_test_signed) * 1 + 0;
   };
   
+  /**
+   * IO_DEBUG_test_float
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DBG
+   * - Start bit: 24
+   * - Size: 8 bits
+   * - Factor: 0.5
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] double io_debug_test_float() const noexcept {
     const uint8_t raw_io_debug_test_float = detail::extract_le<uint8_t>(data_.data(), 24, 32);
     return static_cast<double>(raw_io_debug_test_float) * 0.5 + 0.0;
@@ -229,33 +309,65 @@ class IoDebug {
   std::array<uint8_t, LEN> data_{};
 };
 
-class MotorCmd {
+/**
+ * MOTOR_CMD
+ * - ID: Standard 101 (0x65)
+ * - Size: 1 bytes
+ * - Transmitter: DRIVER
+ */
+class MotorCmdMsg {
   public:
   static constexpr uint16_t ID = 101;
   static constexpr std::size_t LEN = 1;
   
-  [[nodiscard]] static std::expected<MotorCmd, CanError> create(
+  [[nodiscard]] static std::expected<MotorCmdMsg, CanError> create(
             int8_t motor_cmd_steer,
             uint8_t motor_cmd_drive
         ) noexcept {
-    MotorCmd msg{};
+    MotorCmdMsg msg{};
     if (auto r = msg.set_motor_cmd_steer(motor_cmd_steer); !r) return std::unexpected(r.error());
     if (auto r = msg.set_motor_cmd_drive(motor_cmd_drive); !r) return std::unexpected(r.error());
     return msg;
   };
   
-  [[nodiscard]] static std::expected<MotorCmd, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
+  [[nodiscard]] static std::expected<MotorCmdMsg, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
     if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);
-    MotorCmd msg{};
+    MotorCmdMsg msg{};
     std::memcpy(msg.data_.data(), frame.data(), LEN);
     return msg;
   };
   
+  /**
+   * MOTOR_CMD_steer
+   * - Min: -5
+   * - Max: 5
+   * - Unit: 
+   * - Receivers: MOTOR
+   * - Start bit: 0
+   * - Size: 4 bits
+   * - Factor: 1
+   * - Offset: -5
+   * - Byte order: LittleEndian
+   * - Type: signed
+   */
   [[nodiscard]] int8_t motor_cmd_steer() const noexcept {
     const int8_t raw_motor_cmd_steer = detail::extract_le<int8_t>(data_.data(), 0, 4);
     return static_cast<int8_t>(raw_motor_cmd_steer) * 1 + -5;
   };
   
+  /**
+   * MOTOR_CMD_drive
+   * - Min: 0
+   * - Max: 9
+   * - Unit: 
+   * - Receivers: MOTOR
+   * - Start bit: 4
+   * - Size: 4 bits
+   * - Factor: 1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] uint8_t motor_cmd_drive() const noexcept {
     const uint8_t raw_motor_cmd_drive = detail::extract_le<uint8_t>(data_.data(), 4, 8);
     return static_cast<uint8_t>(raw_motor_cmd_drive) * 1 + 0;
@@ -279,33 +391,65 @@ class MotorCmd {
   std::array<uint8_t, LEN> data_{};
 };
 
-class MotorStatus {
+/**
+ * MOTOR_STATUS
+ * - ID: Standard 400 (0x190)
+ * - Size: 3 bytes
+ * - Transmitter: MOTOR
+ */
+class MotorStatusMsg {
   public:
   static constexpr uint16_t ID = 400;
   static constexpr std::size_t LEN = 3;
   
-  [[nodiscard]] static std::expected<MotorStatus, CanError> create(
+  [[nodiscard]] static std::expected<MotorStatusMsg, CanError> create(
             uint8_t motor_status_wheel_error,
             double motor_status_speed_kph
         ) noexcept {
-    MotorStatus msg{};
+    MotorStatusMsg msg{};
     if (auto r = msg.set_motor_status_wheel_error(motor_status_wheel_error); !r) return std::unexpected(r.error());
     if (auto r = msg.set_motor_status_speed_kph(motor_status_speed_kph); !r) return std::unexpected(r.error());
     return msg;
   };
   
-  [[nodiscard]] static std::expected<MotorStatus, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
+  [[nodiscard]] static std::expected<MotorStatusMsg, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
     if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);
-    MotorStatus msg{};
+    MotorStatusMsg msg{};
     std::memcpy(msg.data_.data(), frame.data(), LEN);
     return msg;
   };
   
+  /**
+   * MOTOR_STATUS_wheel_error
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DRIVER, IO
+   * - Start bit: 0
+   * - Size: 1 bits
+   * - Factor: 1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] uint8_t motor_status_wheel_error() const noexcept {
     const uint8_t raw_motor_status_wheel_error = detail::extract_le<uint8_t>(data_.data(), 0, 1);
     return static_cast<uint8_t>(raw_motor_status_wheel_error) * 1 + 0;
   };
   
+  /**
+   * MOTOR_STATUS_speed_kph
+   * - Min: 0
+   * - Max: 0
+   * - Unit: kph
+   * - Receivers: DRIVER, IO
+   * - Start bit: 8
+   * - Size: 16 bits
+   * - Factor: 0.001
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] double motor_status_speed_kph() const noexcept {
     const uint16_t raw_motor_status_speed_kph = detail::extract_le<uint16_t>(data_.data(), 8, 24);
     return static_cast<double>(raw_motor_status_speed_kph) * 0.001 + 0.0;
@@ -329,17 +473,17 @@ class MotorStatus {
   std::array<uint8_t, LEN> data_{};
 };
 
-class SensorSonarsMux0 {
+class SensorSonarsMsgMux0 {
   public:
   static constexpr std::size_t LEN = 8;
   
-  [[nodiscard]] static std::expected<SensorSonarsMux0, CanError> create(
+  [[nodiscard]] static std::expected<SensorSonarsMsgMux0, CanError> create(
             double sensor_sonars_left,
             double sensor_sonars_middle,
             double sensor_sonars_right,
             double sensor_sonars_rear
         ) noexcept {
-    SensorSonarsMux0 msg{};
+    SensorSonarsMsgMux0 msg{};
     if (auto r = msg.set_sensor_sonars_left(sensor_sonars_left); !r) return std::unexpected(r.error());
     if (auto r = msg.set_sensor_sonars_middle(sensor_sonars_middle); !r) return std::unexpected(r.error());
     if (auto r = msg.set_sensor_sonars_right(sensor_sonars_right); !r) return std::unexpected(r.error());
@@ -347,21 +491,73 @@ class SensorSonarsMux0 {
     return msg;
   };
   
+  /**
+   * SENSOR_SONARS_left
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DRIVER, IO
+   * - Start bit: 16
+   * - Size: 12 bits
+   * - Factor: 0.1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] double sensor_sonars_left() const noexcept {
     const uint16_t raw_sensor_sonars_left = detail::extract_le<uint16_t>(data_.data(), 16, 28);
     return static_cast<double>(raw_sensor_sonars_left) * 0.1 + 0.0;
   };
   
+  /**
+   * SENSOR_SONARS_middle
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DRIVER, IO
+   * - Start bit: 28
+   * - Size: 12 bits
+   * - Factor: 0.1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] double sensor_sonars_middle() const noexcept {
     const uint16_t raw_sensor_sonars_middle = detail::extract_le<uint16_t>(data_.data(), 28, 40);
     return static_cast<double>(raw_sensor_sonars_middle) * 0.1 + 0.0;
   };
   
+  /**
+   * SENSOR_SONARS_right
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DRIVER, IO
+   * - Start bit: 40
+   * - Size: 12 bits
+   * - Factor: 0.1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] double sensor_sonars_right() const noexcept {
     const uint16_t raw_sensor_sonars_right = detail::extract_le<uint16_t>(data_.data(), 40, 52);
     return static_cast<double>(raw_sensor_sonars_right) * 0.1 + 0.0;
   };
   
+  /**
+   * SENSOR_SONARS_rear
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DRIVER, IO
+   * - Start bit: 52
+   * - Size: 12 bits
+   * - Factor: 0.1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] double sensor_sonars_rear() const noexcept {
     const uint16_t raw_sensor_sonars_rear = detail::extract_le<uint16_t>(data_.data(), 52, 64);
     return static_cast<double>(raw_sensor_sonars_rear) * 0.1 + 0.0;
@@ -394,21 +590,21 @@ class SensorSonarsMux0 {
   [[nodiscard]] std::array<uint8_t, LEN> encode() const noexcept { return data_; }
   
   private:
-  friend class SensorSonars;
+  friend class SensorSonarsMsg;
   std::array<uint8_t, LEN> data_{};
 };
 
-class SensorSonarsMux1 {
+class SensorSonarsMsgMux1 {
   public:
   static constexpr std::size_t LEN = 8;
   
-  [[nodiscard]] static std::expected<SensorSonarsMux1, CanError> create(
+  [[nodiscard]] static std::expected<SensorSonarsMsgMux1, CanError> create(
             double sensor_sonars_no_filt_left,
             double sensor_sonars_no_filt_middle,
             double sensor_sonars_no_filt_right,
             double sensor_sonars_no_filt_rear
         ) noexcept {
-    SensorSonarsMux1 msg{};
+    SensorSonarsMsgMux1 msg{};
     if (auto r = msg.set_sensor_sonars_no_filt_left(sensor_sonars_no_filt_left); !r) return std::unexpected(r.error());
     if (auto r = msg.set_sensor_sonars_no_filt_middle(sensor_sonars_no_filt_middle); !r) return std::unexpected(r.error());
     if (auto r = msg.set_sensor_sonars_no_filt_right(sensor_sonars_no_filt_right); !r) return std::unexpected(r.error());
@@ -416,21 +612,73 @@ class SensorSonarsMux1 {
     return msg;
   };
   
+  /**
+   * SENSOR_SONARS_no_filt_left
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DBG
+   * - Start bit: 16
+   * - Size: 12 bits
+   * - Factor: 0.1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] double sensor_sonars_no_filt_left() const noexcept {
     const uint16_t raw_sensor_sonars_no_filt_left = detail::extract_le<uint16_t>(data_.data(), 16, 28);
     return static_cast<double>(raw_sensor_sonars_no_filt_left) * 0.1 + 0.0;
   };
   
+  /**
+   * SENSOR_SONARS_no_filt_middle
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DBG
+   * - Start bit: 28
+   * - Size: 12 bits
+   * - Factor: 0.1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] double sensor_sonars_no_filt_middle() const noexcept {
     const uint16_t raw_sensor_sonars_no_filt_middle = detail::extract_le<uint16_t>(data_.data(), 28, 40);
     return static_cast<double>(raw_sensor_sonars_no_filt_middle) * 0.1 + 0.0;
   };
   
+  /**
+   * SENSOR_SONARS_no_filt_right
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DBG
+   * - Start bit: 40
+   * - Size: 12 bits
+   * - Factor: 0.1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] double sensor_sonars_no_filt_right() const noexcept {
     const uint16_t raw_sensor_sonars_no_filt_right = detail::extract_le<uint16_t>(data_.data(), 40, 52);
     return static_cast<double>(raw_sensor_sonars_no_filt_right) * 0.1 + 0.0;
   };
   
+  /**
+   * SENSOR_SONARS_no_filt_rear
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DBG
+   * - Start bit: 52
+   * - Size: 12 bits
+   * - Factor: 0.1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] double sensor_sonars_no_filt_rear() const noexcept {
     const uint16_t raw_sensor_sonars_no_filt_rear = detail::extract_le<uint16_t>(data_.data(), 52, 64);
     return static_cast<double>(raw_sensor_sonars_no_filt_rear) * 0.1 + 0.0;
@@ -463,24 +711,43 @@ class SensorSonarsMux1 {
   [[nodiscard]] std::array<uint8_t, LEN> encode() const noexcept { return data_; }
   
   private:
-  friend class SensorSonars;
+  friend class SensorSonarsMsg;
   std::array<uint8_t, LEN> data_{};
 };
 
-using SensorSonarsMux = std::variant<SensorSonarsMux0, SensorSonarsMux1>;
+using SensorSonarsMsgMux = std::variant<SensorSonarsMsgMux0, SensorSonarsMsgMux1>;
 
-class SensorSonars {
+/**
+ * SENSOR_SONARS
+ * - ID: Standard 200 (0xC8)
+ * - Size: 8 bytes
+ * - Transmitter: SENSOR
+ */
+class SensorSonarsMsg {
   public:
   static constexpr uint16_t ID = 200;
   static constexpr std::size_t LEN = 8;
   
-  [[nodiscard]] static std::expected<SensorSonars, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
+  [[nodiscard]] static std::expected<SensorSonarsMsg, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
     if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);
-    SensorSonars msg{};
+    SensorSonarsMsg msg{};
     std::memcpy(msg.data_.data(), frame.data(), LEN);
     return msg;
   };
   
+  /**
+   * SENSOR_SONARS_err_count
+   * - Min: 0
+   * - Max: 0
+   * - Unit: 
+   * - Receivers: DRIVER, IO
+   * - Start bit: 4
+   * - Size: 12 bits
+   * - Factor: 1
+   * - Offset: 0
+   * - Byte order: LittleEndian
+   * - Type: unsigned
+   */
   [[nodiscard]] uint16_t sensor_sonars_err_count() const noexcept {
     const uint16_t raw_sensor_sonars_err_count = detail::extract_le<uint16_t>(data_.data(), 4, 16);
     return static_cast<uint16_t>(raw_sensor_sonars_err_count) * 1 + 0;
@@ -492,16 +759,16 @@ class SensorSonars {
     return {};
   };
   
-  [[nodiscard]] std::expected<SensorSonarsMux, CanError> mux() const noexcept {
+  [[nodiscard]] std::expected<SensorSonarsMsgMux, CanError> mux() const noexcept {
     const uint8_t mux_raw = detail::extract_le<uint8_t>(data_.data(), 0, 4);
     switch (mux_raw) {
       case 0: {
-        SensorSonarsMux0 inner{};
+        SensorSonarsMsgMux0 inner{};
         std::memcpy(inner.data_.data(), data_.data(), LEN);
         return inner;
       };
       case 1: {
-        SensorSonarsMux1 inner{};
+        SensorSonarsMsgMux1 inner{};
         std::memcpy(inner.data_.data(), data_.data(), LEN);
         return inner;
       };
@@ -509,11 +776,11 @@ class SensorSonars {
     };
   };
   
-  void set_mux_0(const SensorSonarsMux0& value) noexcept {
+  void set_mux_0(const SensorSonarsMsgMux0& value) noexcept {
     for (std::size_t i = 0; i < LEN; ++i) data_[i] |= value.data_[i];
     detail::insert_le<uint8_t>(data_.data(), 0, 4, static_cast<uint8_t>(0));
   };
-  void set_mux_1(const SensorSonarsMux1& value) noexcept {
+  void set_mux_1(const SensorSonarsMsgMux1& value) noexcept {
     for (std::size_t i = 0; i < LEN; ++i) data_[i] |= value.data_[i];
     detail::insert_le<uint8_t>(data_.data(), 0, 4, static_cast<uint8_t>(1));
   };
@@ -525,39 +792,39 @@ class SensorSonars {
   ;
 };
 
-using CanMsg = std::variant<DriverHeartbeat, IoDebug, MotorCmd, MotorStatus, SensorSonars>;
+using CanMsg = std::variant<DriverHeartbeatMsg, IoDebugMsg, MotorCmdMsg, MotorStatusMsg, SensorSonarsMsg>;
 
 [[nodiscard]]
 inline std::expected<CanMsg, CanError>
 parse_can(uint32_t id, std::span<const uint8_t> frame) noexcept {
   switch (id) {
-    case DriverHeartbeat::ID:
+    case DriverHeartbeatMsg::ID:
      {
-      auto r = DriverHeartbeat::try_from_frame(frame);
+      auto r = DriverHeartbeatMsg::try_from_frame(frame);
       if (!r) return std::unexpected(r.error());
       return CanMsg{std::move(*r)};
     };
-    case IoDebug::ID:
+    case IoDebugMsg::ID:
      {
-      auto r = IoDebug::try_from_frame(frame);
+      auto r = IoDebugMsg::try_from_frame(frame);
       if (!r) return std::unexpected(r.error());
       return CanMsg{std::move(*r)};
     };
-    case MotorCmd::ID:
+    case MotorCmdMsg::ID:
      {
-      auto r = MotorCmd::try_from_frame(frame);
+      auto r = MotorCmdMsg::try_from_frame(frame);
       if (!r) return std::unexpected(r.error());
       return CanMsg{std::move(*r)};
     };
-    case MotorStatus::ID:
+    case MotorStatusMsg::ID:
      {
-      auto r = MotorStatus::try_from_frame(frame);
+      auto r = MotorStatusMsg::try_from_frame(frame);
       if (!r) return std::unexpected(r.error());
       return CanMsg{std::move(*r)};
     };
-    case SensorSonars::ID:
+    case SensorSonarsMsg::ID:
      {
-      auto r = SensorSonars::try_from_frame(frame);
+      auto r = SensorSonarsMsg::try_from_frame(frame);
       if (!r) return std::unexpected(r.error());
       return CanMsg{std::move(*r)};
     };
