@@ -69,7 +69,7 @@ impl ToTokens for ErrorEnum {
                 UnknownMuxValue,
                 InvalidPayloadSize,
                 ValueOutOfRange,
-                IvalidEnumValue,
+                InvalidEnumValue,
             }
         }
         .to_tokens(tokens);
@@ -603,7 +603,7 @@ impl<'a> SignalValueEnumCtx<'a> {
                 fn try_from(val: #rust_type) -> Result<Self, CanError> {
                     Ok(match val {
                         #( #from_arms, )*
-                        _ => return Err(CanError::IvalidEnumValue),
+                        _ => return Err(CanError::InvalidEnumValue),
                     })
                 }
             }
