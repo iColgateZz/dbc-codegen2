@@ -60,7 +60,7 @@ impl CppGen {
     }
 
     fn includes(out: &mut Generator) {
-        const INCLUDES: &[&str] = &["array", "cstddef", "cstdint", "expected", "span", "variant", "utility"];
+        const INCLUDES: &[&str] = &["array", "cstddef", "cstdint", "expected", "span", "variant", "utility", "cstring"];
 
         for include in INCLUDES {
             line!(out, "#include <{}>", include);
