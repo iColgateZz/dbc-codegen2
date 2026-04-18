@@ -366,6 +366,7 @@ impl MessageDef<'_> {
             let order = mux_signal.bitvec_order();
             let store = mux_signal.store_fn();
 
+            //TODO: bitor seems like a hack. Come up with more robust version
             quote! {
                 pub fn #fn_name(&mut self, value: #struct_name) -> Result<(), CanError> {
                     let b0 = BitArray::<_, LocalBits>::new(self.data);
