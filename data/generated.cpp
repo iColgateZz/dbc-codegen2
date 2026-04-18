@@ -728,6 +728,22 @@ class SensorSonarsMsg {
   static constexpr uint16_t ID = 200;
   static constexpr std::size_t LEN = 8;
   
+  [[nodiscard]] static std::expected<SensorSonarsMsg, CanError> create(uint16_t sensor_sonars_err_count, SensorSonarsMsgMux mux) noexcept {
+    SensorSonarsMsg msg{};
+    if (auto r = msg.set_sensor_sonars_err_count(sensor_sonars_err_count); !r) return std::unexpected(r.error());
+    std::visit([&msg](const auto& v) {
+      using T = std::decay_t<decltype(v)>;
+      if constexpr (std::is_same_v<T, SensorSonarsMsgMux0>) {
+        msg.set_mux_0(v);
+      };
+      if constexpr (std::is_same_v<T, SensorSonarsMsgMux1>) {
+        msg.set_mux_1(v);
+      };
+    }, mux);
+    
+    return msg;
+  };
+  
   [[nodiscard]] static std::expected<SensorSonarsMsg, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept {
     if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);
     SensorSonarsMsg msg{};
@@ -789,7 +805,6 @@ class SensorSonarsMsg {
   
   private:
   std::array<uint8_t, LEN> data_{};
-  ;
 };
 
 using CanMsg = std::variant<DriverHeartbeatMsg, IoDebugMsg, MotorCmdMsg, MotorStatusMsg, SensorSonarsMsg>;

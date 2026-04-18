@@ -5,7 +5,7 @@ use heck::ToSnakeCase;
 use crate::{
     DbcFile,
     codegen::Generator,
-    empty, end_block,
+    empty, end_block, end_block_no_close,
     ir::{
         message::{Message, MessageId, MessageSignalClassification},
         signal::Signal,
@@ -835,6 +835,58 @@ impl CppGen {
                 line!(out, "static constexpr std::size_t LEN = {};", msg.size);
                 empty!(out);
 
+                let args = plain_sigs
+                    .iter()
+                    .map(|s| {
+                        if s.signal_value_enum_idx.is_some() {
+                            format!("{} {}", s.name.upper_camel(), s.name.raw.to_snake_case())
+                        } else {
+                            format!(
+                                "{} {}",
+                                s.physical_type.as_cpp_type(),
+                                s.name.raw.to_snake_case()
+                            )
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                let args_formatted = if args.is_empty() {
+                    format!("{} mux", mux_enum_name)
+                } else {
+                    format!("{}, {} mux", args, mux_enum_name)
+                };
+
+                start_block!(
+                    out,
+                    "[[nodiscard]] static std::expected<{}, CanError> create({}) noexcept",
+                    msg_name,
+                    args_formatted
+                );
+                line!(out, "{} msg{{}};", msg_name);
+                for signal in &plain_sigs {
+                    let f = signal.name.raw.to_snake_case();
+                    line!(
+                        out,
+                        "if (auto r = msg.set_{}({}); !r) return std::unexpected(r.error());",
+                        f,
+                        f
+                    );
+                }
+
+                start_block!(out, "std::visit([&msg](const auto& v)");
+                line!(out, "using T = std::decay_t<decltype(v)>;");
+                for (mux_value, _) in &muxed_sigs {
+                    let variant_class = format!("{}Mux{}", msg_name, mux_value);
+                    start_block!(out, "if constexpr (std::is_same_v<T, {}>)", variant_class);
+                    line!(out, "msg.set_mux_{}(v);", mux_value);
+                    end_block!(out, "");
+                }
+                end_block_no_close!(out, "}}, mux);");
+                empty!(out);
+                end_block!(out, "return msg;");
+                empty!(out);
+
                 start_block!(
                     out,
                     "[[nodiscard]] static std::expected<{}, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept",
@@ -931,7 +983,7 @@ impl CppGen {
                 line!(out, "private:");
                 line!(out, "std::array<uint8_t, LEN> data_{{}};");
 
-                end_block!(out, ";");
+                end_block!(out, "");
                 empty!(out);
             }
         }
