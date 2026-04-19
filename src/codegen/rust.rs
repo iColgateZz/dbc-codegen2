@@ -591,7 +591,7 @@ impl ToTokens for SignalValueEnumCtx<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let enum_def = self.enum_def;
 
-        let enum_name = format_ident!("{}", self.enum_def.name.to_upper_camel_case());
+        let enum_name = format_ident!("{}", self.enum_def.name.upper_camel());
         let repr_type = &enum_def.phys_type;
         let rust_type = format_ident!("{}", repr_type.as_rust_type());
 
@@ -698,7 +698,7 @@ impl<'a> SignalValueEnumCtx<'a> {
     }
 
     fn gen_from_arms(&self, sve: &SignalValueEnum) -> impl Iterator<Item = TokenStream> {
-        let enum_name = format_ident!("{}", self.enum_def.name.to_upper_camel_case());
+        let enum_name = format_ident!("{}", self.enum_def.name.upper_camel());
         let repr_type = &self.enum_def.phys_type;
 
         sve.variants.iter().map(move |vd| {
@@ -709,7 +709,7 @@ impl<'a> SignalValueEnumCtx<'a> {
     }
 
     fn gen_into_arms(&self, sve: &SignalValueEnum) -> impl Iterator<Item = TokenStream> {
-        let enum_name = format_ident!("{}", self.enum_def.name.to_upper_camel_case());
+        let enum_name = format_ident!("{}", self.enum_def.name.upper_camel());
         let repr_type = &self.enum_def.phys_type;
 
         sve.variants.iter().map(move |vd| {
@@ -755,7 +755,7 @@ impl<'a> SignalCtx<'a> {
 
     fn enum_ident(&self) -> syn::Ident {
         let sve = self.sve.expect("enum_ident called without enum");
-        format_ident!("{}", sve.name.to_upper_camel_case())
+        format_ident!("{}", sve.name.upper_camel())
     }
 
     fn rust_type(&self) -> syn::Ident {

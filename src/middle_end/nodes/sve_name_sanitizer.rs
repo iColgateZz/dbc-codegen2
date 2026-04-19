@@ -10,7 +10,7 @@ impl TransformationNode for SanitizeSVENames {
         let mut counts: HashMap<String, usize> = HashMap::new();
 
         for sve in &mut file.signal_value_enums {
-            let base = format!("{}_ENUM", sve.name);
+            let base = format!("{}_ENUM", sve.name.raw);
 
             let count = counts.entry(base.to_lowercase()).or_insert(0);
 
@@ -22,7 +22,7 @@ impl TransformationNode for SanitizeSVENames {
 
             *count += 1;
 
-            sve.name = new_name;
+            sve.name.raw = new_name;
         }
     }
 }

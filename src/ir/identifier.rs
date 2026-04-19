@@ -19,15 +19,19 @@ impl Identifier {
         &self.raw
     }
 
+    pub fn rendered(&self) -> String {
+        format!("{}{}", self.raw, self.postfix)
+    }
+
     pub fn lower(&self) -> String {
-        format!("{}{}", self.raw, self.postfix).to_lowercase()
+        self.rendered().to_lowercase()
     }
 
     pub fn upper_camel(&self) -> String {
-        format!("{}{}", self.raw, self.postfix).to_upper_camel_case()
+        self.rendered().to_upper_camel_case()
     }
 
     pub fn snake_case(&self) -> String {
-        format!("{}{}", self.raw, self.postfix).to_snake_case()
+        self.rendered().to_snake_case()
     }
 }
