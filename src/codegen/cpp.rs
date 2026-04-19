@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use heck::ToSnakeCase;
+use heck::{ToSnakeCase, ToUpperCamelCase};
 
 use crate::{
     DbcFile,
@@ -218,7 +218,7 @@ impl CppGen {
         enum_def: &SignalValueEnum,
         config: &CodegenConfig,
     ) {
-        let name = &signal.name.upper_camel();
+        let name = &enum_def.name.to_upper_camel_case();
         let cpp_type = &signal.physical_type.as_cpp_type();
 
         if config.no_enum_other {
@@ -268,7 +268,11 @@ impl CppGen {
             empty!(out);
 
             line!(out, "Kind kind;");
-            line!(out, "{} raw; // only meaningful when kind == Kind::_other", cpp_type);
+            line!(
+                out,
+                "{} raw; // only meaningful when kind == Kind::_other",
+                cpp_type
+            );
             empty!(out);
 
             for variant in &enum_def.variants {
@@ -459,11 +463,12 @@ impl CppGen {
             let is_raw_float = matches!(signal.raw_type, RawType::Float32 | RawType::Float64);
             let is_phys_float = phys_type == "float" || phys_type == "double";
 
-            let return_type = if signal.signal_value_enum_idx.is_some() {
+            let return_type = if let Some(idx) = signal.signal_value_enum_idx {
+                let enum_name = file.signal_value_enums[idx.0].name.to_upper_camel_case();
                 if config.no_enum_other {
-                    format!("std::expected<{}, CanError>", signal.name.upper_camel())
+                    format!("std::expected<{}, CanError>", enum_name)
                 } else {
-                    signal.name.upper_camel().to_string()
+                    enum_name
                 }
             } else {
                 phys_type.to_string()
@@ -491,7 +496,11 @@ impl CppGen {
                     layout.bitvec_start,
                     layout.bitvec_end
                 );
-                let from_fn = format!("{}_from_raw", signal.name.upper_camel().to_snake_case());
+                let from_fn = {
+                    let idx = signal.signal_value_enum_idx.unwrap();
+                    let enum_name = file.signal_value_enums[idx.0].name.to_upper_camel_case();
+                    format!("{}_from_raw", enum_name.to_snake_case())
+                };
                 line!(out, "return {}({});", from_fn, raw_name);
             } else if is_raw_float {
                 let uint_repr = Self::cpp_uint_repr_for_float(&signal.raw_type);
@@ -636,8 +645,8 @@ impl CppGen {
             let is_raw_float = matches!(signal.raw_type, RawType::Float32 | RawType::Float64);
             let is_phys_float = phys_type == "float" || phys_type == "double";
 
-            let param_type = if signal.signal_value_enum_idx.is_some() {
-                format!("{}", signal.name.upper_camel())
+            let param_type = if let Some(idx) = signal.signal_value_enum_idx {
+                file.signal_value_enums[idx.0].name.to_upper_camel_case()
             } else {
                 phys_type.to_string()
             };
@@ -740,12 +749,21 @@ impl CppGen {
         }
     }
 
-    fn emit_create_method(out: &mut Generator, msg_name: &str, signals: &[&Signal]) {
+    fn emit_create_method(
+        out: &mut Generator,
+        msg_name: &str,
+        signals: &[&Signal],
+        file: &DbcFile,
+    ) {
         let args = signals
             .iter()
             .map(|s| {
-                if s.signal_value_enum_idx.is_some() {
-                    format!("{} {}", s.name.upper_camel(), s.name.raw.to_snake_case())
+                if let Some(idx) = s.signal_value_enum_idx {
+                    format!(
+                        "{} {}",
+                        file.signal_value_enums[idx.0].name.to_upper_camel_case(),
+                        s.name.raw.to_snake_case()
+                    )
                 } else {
                     format!(
                         "{} {}",
@@ -808,7 +826,7 @@ impl CppGen {
         line!(out, "static constexpr std::size_t LEN = {};", msg.size);
         empty!(out);
 
-        Self::emit_create_method(out, &class_name, signals);
+        Self::emit_create_method(out, &class_name, signals, file);
 
         Self::emit_signal_getters(out, signals, file, config);
         Self::emit_signal_setters(out, signals, file, config);
@@ -835,9 +853,12 @@ impl CppGen {
             .map(|idx| &file.signals[idx.0])
             .collect();
 
+        let mut emitted_enum_idxs = std::collections::BTreeSet::new();
         for signal in &all_signals {
-            if let Some(idx) = &signal.signal_value_enum_idx {
-                Self::signal_value_enum(out, signal, &file.signal_value_enums[idx.0], config);
+            if let Some(idx) = signal.signal_value_enum_idx {
+                if emitted_enum_idxs.insert(idx.0) {
+                    Self::signal_value_enum(out, signal, &file.signal_value_enums[idx.0], config);
+                }
             }
         }
 
@@ -857,7 +878,7 @@ impl CppGen {
                 line!(out, "static constexpr std::size_t LEN = {};", msg.size);
                 empty!(out);
 
-                Self::emit_create_method(out, &msg_name, &sigs);
+                Self::emit_create_method(out, &msg_name, &sigs, file);
 
                 start_block!(
                     out,
@@ -936,8 +957,12 @@ impl CppGen {
                 let args = plain_sigs
                     .iter()
                     .map(|s| {
-                        if s.signal_value_enum_idx.is_some() {
-                            format!("{} {}", s.name.upper_camel(), s.name.raw.to_snake_case())
+                        if let Some(idx) = s.signal_value_enum_idx {
+                            format!(
+                                "{} {}",
+                                file.signal_value_enums[idx.0].name.to_upper_camel_case(),
+                                s.name.raw.to_snake_case()
+                            )
                         } else {
                             format!(
                                 "{} {}",
