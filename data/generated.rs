@@ -71,10 +71,7 @@ pub enum Msg {
     MotorCmdMsg(MotorCmdMsg),
     MotorStatusMsg(MotorStatusMsg),
     SensorSonarsMsg(SensorSonarsMsg),
-    BmwModule4P6Msg(BmwModule4P6Msg),
-    BmwModule1P1Msg(BmwModule1P1Msg),
-    BmwModule1P2Msg(BmwModule1P2Msg),
-    BmwModule1P3Msg(BmwModule1P3Msg),
+    DriverHeartbeatMsg1(DriverHeartbeatMsg1),
 }
 impl Msg {
     fn try_from(frame: &impl Frame) -> Result<Self, CanError> {
@@ -90,17 +87,8 @@ impl Msg {
             SensorSonarsMsg::ID => {
                 Msg::SensorSonarsMsg(SensorSonarsMsg::try_from_frame(frame)?)
             }
-            BmwModule4P6Msg::ID => {
-                Msg::BmwModule4P6Msg(BmwModule4P6Msg::try_from_frame(frame)?)
-            }
-            BmwModule1P1Msg::ID => {
-                Msg::BmwModule1P1Msg(BmwModule1P1Msg::try_from_frame(frame)?)
-            }
-            BmwModule1P2Msg::ID => {
-                Msg::BmwModule1P2Msg(BmwModule1P2Msg::try_from_frame(frame)?)
-            }
-            BmwModule1P3Msg::ID => {
-                Msg::BmwModule1P3Msg(BmwModule1P3Msg::try_from_frame(frame)?)
+            DriverHeartbeatMsg1::ID => {
+                Msg::DriverHeartbeatMsg1(DriverHeartbeatMsg1::try_from_frame(frame)?)
             }
             _ => return Err(CanError::UnknownFrameId),
         };
@@ -262,7 +250,7 @@ impl IoDebugMsg {
         (raw_io_debug_test_float as f32) * (0.5f32) + (0f32)
     }
     pub fn set_io_debug_test_unsigned(&mut self, value: u8) -> Result<(), CanError> {
-        if value < 0u8 || value > 0u8 {
+        if value > 0u8 {
             return Err(CanError::ValueOutOfRange);
         }
         self.data
@@ -373,7 +361,7 @@ impl MotorCmdMsg {
         Ok(())
     }
     pub fn set_motor_cmd_drive(&mut self, value: u8) -> Result<(), CanError> {
-        if value < 0u8 || value > 9u8 {
+        if value > 9u8 {
             return Err(CanError::ValueOutOfRange);
         }
         self.data
@@ -453,7 +441,7 @@ impl MotorStatusMsg {
         (raw_motor_status_speed_kph as f32) * (0.001f32) + (0f32)
     }
     pub fn set_motor_status_wheel_error(&mut self, value: u8) -> Result<(), CanError> {
-        if value < 0u8 || value > 0u8 {
+        if value > 0u8 {
             return Err(CanError::ValueOutOfRange);
         }
         self.data
@@ -839,7 +827,7 @@ impl SensorSonarsMsg {
         (raw_sensor_sonars_err_count) * (1u16) + (0u16)
     }
     pub fn set_sensor_sonars_err_count(&mut self, value: u16) -> Result<(), CanError> {
-        if value < 0u16 || value > 0u16 {
+        if value > 0u16 {
             return Err(CanError::ValueOutOfRange);
         }
         self.data
@@ -862,204 +850,58 @@ impl CanMessageTrait<{ Self::LEN }> for SensorSonarsMsg {
         self.data
     }
 }
-///BMW_Module_4_P6
-///- ID: Standard 371 (0x173)
-///- Size: 8 bytes
-///- Transmitter: VectorXXX
+///DRIVER_HEARTBEAT
+///- ID: Standard 100 (0x64)
+///- Size: 1 bytes
+///- Transmitter: DRIVER
 #[derive(Debug, Clone)]
-pub struct BmwModule4P6Msg {
-    data: [u8; 8usize],
+pub struct DriverHeartbeatMsg1 {
+    data: [u8; 1usize],
 }
-impl BmwModule4P6Msg {
-    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(371u16) });
-    pub const LEN: usize = 8usize;
-    pub fn new(cell_16: u16) -> Result<Self, CanError> {
+impl DriverHeartbeatMsg1 {
+    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(100u16) });
+    pub const LEN: usize = 1usize;
+    pub fn new(driver_heartbeat_cmd: u8) -> Result<Self, CanError> {
         let mut msg = Self { data: [0u8; Self::LEN] };
-        msg.set_cell_16(cell_16)?;
+        msg.set_driver_heartbeat_cmd(driver_heartbeat_cmd)?;
         Ok(msg)
     }
-    ///Cell_16
+    ///DRIVER_HEARTBEAT_cmd
     ///- Min: 0
     ///- Max: 0
     ///- Unit:
-    ///- Receivers: VectorXXX
-    ///- Start bit: 1
-    ///- Size: 14 bits
-    ///- Factor: 1
-    ///- Offset: 1000
-    ///- Byte order: LittleEndian
-    ///- Type: unsigned
-    pub fn cell_16(&self) -> u16 {
-        let raw_cell_16 = self
-            .data
-            .view_bits::<Lsb0>()[1usize..15usize]
-            .load_le::<u16>();
-        (raw_cell_16) * (1u16) + (1000u16)
-    }
-    pub fn set_cell_16(&mut self, value: u16) -> Result<(), CanError> {
-        if value < 0u16 || value > 0u16 {
-            return Err(CanError::ValueOutOfRange);
-        }
-        self.data
-            .view_bits_mut::<Lsb0>()[1usize..15usize]
-            .store_le((value - (1000u16)) / (1u16));
-        Ok(())
-    }
-}
-impl CanMessageTrait<{ Self::LEN }> for BmwModule4P6Msg {
-    fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
-        let data = frame.data();
-        if data.len() < Self::LEN {
-            return Err(CanError::InvalidPayloadSize);
-        }
-        let mut buf = [0u8; 8usize];
-        buf.copy_from_slice(&data[..8usize]);
-        Ok(Self { data: buf })
-    }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
-    }
-}
-///BMW_Module_1_P1
-///- ID: Standard 129 (0x81)
-///- Size: 8 bytes
-///- Transmitter: VectorXXX
-#[derive(Debug, Clone)]
-pub struct BmwModule1P1Msg {
-    data: [u8; 8usize],
-}
-impl BmwModule1P1Msg {
-    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(129u16) });
-    pub const LEN: usize = 8usize;
-    pub fn new(cell_1_voltage: u16) -> Result<Self, CanError> {
-        let mut msg = Self { data: [0u8; Self::LEN] };
-        msg.set_cell_1_voltage(cell_1_voltage)?;
-        Ok(msg)
-    }
-    ///Cell_1_Voltage
-    ///- Min: 0
-    ///- Max: 0
-    ///- Unit: mV
-    ///- Receivers: VectorXXX
+    ///- Receivers: SENSOR, MOTOR
     ///- Start bit: 0
-    ///- Size: 14 bits
+    ///- Size: 8 bits
     ///- Factor: 1
     ///- Offset: 0
     ///- Byte order: LittleEndian
     ///- Type: unsigned
-    pub fn cell_1_voltage(&self) -> u16 {
-        let raw_cell_1_voltage = self
+    pub fn driver_heartbeat_cmd(&self) -> u8 {
+        let raw_driver_heartbeat_cmd = self
             .data
-            .view_bits::<Lsb0>()[0usize..14usize]
-            .load_le::<u16>();
-        (raw_cell_1_voltage) * (1u16) + (0u16)
+            .view_bits::<Lsb0>()[0usize..8usize]
+            .load_le::<u8>();
+        (raw_driver_heartbeat_cmd) * (1u8) + (0u8)
     }
-    pub fn set_cell_1_voltage(&mut self, value: u16) -> Result<(), CanError> {
-        if value < 0u16 || value > 0u16 {
+    pub fn set_driver_heartbeat_cmd(&mut self, value: u8) -> Result<(), CanError> {
+        if value > 0u8 {
             return Err(CanError::ValueOutOfRange);
         }
         self.data
-            .view_bits_mut::<Lsb0>()[0usize..14usize]
-            .store_le((value - (0u16)) / (1u16));
+            .view_bits_mut::<Lsb0>()[0usize..8usize]
+            .store_le((value - (0u8)) / (1u8));
         Ok(())
     }
 }
-impl CanMessageTrait<{ Self::LEN }> for BmwModule1P1Msg {
+impl CanMessageTrait<{ Self::LEN }> for DriverHeartbeatMsg1 {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         let data = frame.data();
         if data.len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
         }
-        let mut buf = [0u8; 8usize];
-        buf.copy_from_slice(&data[..8usize]);
-        Ok(Self { data: buf })
-    }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
-    }
-}
-///BMW_Module_1_P2
-///- ID: Standard 130 (0x82)
-///- Size: 8 bytes
-///- Transmitter: VectorXXX
-#[derive(Debug, Clone)]
-pub struct BmwModule1P2Msg {
-    data: [u8; 8usize],
-}
-impl BmwModule1P2Msg {
-    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(130u16) });
-    pub const LEN: usize = 8usize;
-    pub fn new(cell_4_voltage: u16) -> Result<Self, CanError> {
-        let mut msg = Self { data: [0u8; Self::LEN] };
-        msg.set_cell_4_voltage(cell_4_voltage)?;
-        Ok(msg)
-    }
-    ///Cell_4_voltage
-    ///- Min: 0
-    ///- Max: 0
-    ///- Unit: mV
-    ///- Receivers: VectorXXX
-    ///- Start bit: 0
-    ///- Size: 14 bits
-    ///- Factor: 1
-    ///- Offset: 0
-    ///- Byte order: LittleEndian
-    ///- Type: unsigned
-    pub fn cell_4_voltage(&self) -> u16 {
-        let raw_cell_4_voltage = self
-            .data
-            .view_bits::<Lsb0>()[0usize..14usize]
-            .load_le::<u16>();
-        (raw_cell_4_voltage) * (1u16) + (0u16)
-    }
-    pub fn set_cell_4_voltage(&mut self, value: u16) -> Result<(), CanError> {
-        if value < 0u16 || value > 0u16 {
-            return Err(CanError::ValueOutOfRange);
-        }
-        self.data
-            .view_bits_mut::<Lsb0>()[0usize..14usize]
-            .store_le((value - (0u16)) / (1u16));
-        Ok(())
-    }
-}
-impl CanMessageTrait<{ Self::LEN }> for BmwModule1P2Msg {
-    fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
-        let data = frame.data();
-        if data.len() < Self::LEN {
-            return Err(CanError::InvalidPayloadSize);
-        }
-        let mut buf = [0u8; 8usize];
-        buf.copy_from_slice(&data[..8usize]);
-        Ok(Self { data: buf })
-    }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
-    }
-}
-///BMW_Module_1_P3
-///- ID: Standard 131 (0x83)
-///- Size: 8 bytes
-///- Transmitter: VectorXXX
-#[derive(Debug, Clone)]
-pub struct BmwModule1P3Msg {
-    data: [u8; 8usize],
-}
-impl BmwModule1P3Msg {
-    pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(131u16) });
-    pub const LEN: usize = 8usize;
-    pub fn new() -> Result<Self, CanError> {
-        let mut msg = Self { data: [0u8; Self::LEN] };
-        Ok(msg)
-    }
-}
-impl CanMessageTrait<{ Self::LEN }> for BmwModule1P3Msg {
-    fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
-        let data = frame.data();
-        if data.len() < Self::LEN {
-            return Err(CanError::InvalidPayloadSize);
-        }
-        let mut buf = [0u8; 8usize];
-        buf.copy_from_slice(&data[..8usize]);
+        let mut buf = [0u8; 1usize];
+        buf.copy_from_slice(&data[..1usize]);
         Ok(Self { data: buf })
     }
     fn encode(&self) -> [u8; Self::LEN] {

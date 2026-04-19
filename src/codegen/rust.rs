@@ -810,6 +810,7 @@ impl<'a> SignalCtx<'a> {
         }
     }
 
+    //TODO: There may be some issues with large values
     fn range_check(&self) -> TokenStream {
         if self.is_enum() {
             return quote! {};
@@ -822,13 +823,38 @@ impl<'a> SignalCtx<'a> {
             return quote! {};
         }
 
-        let min = self.f64_to_correct_literal_with_type(min);
-        let max = self.f64_to_correct_literal_with_type(max);
+        let ty_min = self.signal.physical_type.min_value_f64();
+        let ty_max = self.signal.physical_type.max_value_f64();
 
-        //TODO: no need to check if unsigned value is less than 0
-        quote! {
-            if value < #min || value > #max {
-                return Err(CanError::ValueOutOfRange);
+        let needs_min_check = min > ty_min;
+        let needs_max_check = max < ty_max;
+
+        match (needs_min_check, needs_max_check) {
+            (false, false) => quote! {},
+            (true, false) => {
+                let min = self.f64_to_correct_literal_with_type(min);
+                quote! {
+                    if value < #min {
+                        return Err(CanError::ValueOutOfRange);
+                    }
+                }
+            }
+            (false, true) => {
+                let max = self.f64_to_correct_literal_with_type(max);
+                quote! {
+                    if value > #max {
+                        return Err(CanError::ValueOutOfRange);
+                    }
+                }
+            }
+            (true, true) => {
+                let min = self.f64_to_correct_literal_with_type(min);
+                let max = self.f64_to_correct_literal_with_type(max);
+                quote! {
+                    if value < #min || value > #max {
+                        return Err(CanError::ValueOutOfRange);
+                    }
+                }
             }
         }
     }
