@@ -1,7 +1,15 @@
 use can_dbc::Dbc as ParsedDbc;
 use clap::{Parser, Subcommand};
-use dbc_codegen2::{DbcFile, app::App, codegen::config::CodegenConfig, ir::IRBuilder, utils::Language};
+use dbc_codegen2::{
+    DbcFile,
+    app::App,
+    codegen::config::CodegenConfig,
+    codegen::config::RustCodeInjectionPoint,
+    ir::IRBuilder,
+    utils::Language,
+};
 use std::{
+    collections::HashMap,
     fs::{self, File},
     io::{BufWriter, Write},
 };
@@ -54,7 +62,7 @@ pub enum Command {
         #[arg(long, default_value = "false")]
         no_enum_dedup: bool,
         /// Treat `[0|0]` ranges in signal definitions as "no range restriction".
-        /// 
+        ///
         /// Some DBC files use `[0|0]` when vendors do not specify physical limits.
         /// When this flag is enabled, the generator ignores the `[0|0]` range and
         /// allows all values representable by the signal encoding.
@@ -82,22 +90,33 @@ fn main() {
             }
         }
 
-        Command::Gen { 
+        Command::Gen {
             inputs,
-            output, 
-            lang, 
+            output,
+            lang,
             no_enum_other,
             no_enum_dedup,
             zero_zero_range_allows_all,
         } => {
-            let config = CodegenConfig {
+            let mut config = CodegenConfig {
                 inputs,
                 output,
                 lang,
                 no_enum_other,
                 no_enum_dedup,
                 zero_zero_range_allows_all,
+                rust_code_injections: HashMap::new(),
             };
+
+            // config.add_rust_code_injection(
+            //     RustCodeInjectionPoint::SignalValueEnum,
+            //     "#[derive(serde::Serialize, serde::Deserialize)]",
+            // );
+
+            // config.add_rust_code_injection(
+            //     RustCodeInjectionPoint::MessageStruct,
+            //     "#[cfg_attr(feature = \"defmt\", derive(defmt::Format))]",
+            // );
 
             let _ = App::run(config);
         }

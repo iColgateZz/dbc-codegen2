@@ -3,7 +3,7 @@ use quote::{ToTokens, format_ident, quote};
 use syn::File;
 
 use crate::DbcFile;
-use crate::codegen::config::CodegenConfig;
+use crate::codegen::config::{CodegenConfig, RustCodeInjectionPoint};
 use crate::ir::message::{Message, MessageId};
 use crate::ir::signal::{MultiplexIndicator, Receiver, Signal};
 use crate::ir::signal_layout::{ByteOrder, SignalLayout};
@@ -11,8 +11,31 @@ use crate::ir::signal_value_enum::SignalValueEnum;
 use crate::ir::signal_value_type::{IntReprType, RustFloatLiteral, RustIntegerLiteral, RustType};
 use heck::ToUpperCamelCase;
 use std::collections::BTreeMap;
+use std::str::FromStr;
 
 pub struct RustGen;
+
+fn rust_code_injection_tokens(
+    config: &CodegenConfig,
+    point: RustCodeInjectionPoint,
+) -> TokenStream {
+    let mut tokens = TokenStream::new();
+
+    if let Some(injections) = config.rust_code_injections.get(&point) {
+        for injection in injections {
+            let parsed = TokenStream::from_str(injection).unwrap_or_else(|e| {
+                panic!(
+                    "failed to parse Rust code injection for {:?}: `{}`: {}",
+                    point, injection, e
+                )
+            });
+
+            tokens.extend(parsed);
+        }
+    }
+
+    tokens
+}
 
 impl RustGen {
     pub fn generate(file: &DbcFile, config: &CodegenConfig) -> String {
@@ -27,9 +50,9 @@ impl RustGen {
             enum_def: e,
             config,
         });
-        let error_enum = ErrorEnum;
+                let error_enum = ErrorEnum { config };
         let msg_trait = MsgTrait;
-        let msg_enum = MsgEnum { messages };
+        let msg_enum = MsgEnum { messages, config };
         let message_defs: Vec<_> = messages
             .iter()
             .map(|m| MessageDef {
@@ -58,11 +81,19 @@ impl RustGen {
     }
 }
 
-struct ErrorEnum;
+struct ErrorEnum<'a> {
+    config: &'a CodegenConfig,
+}
 
-impl ToTokens for ErrorEnum {
+impl ToTokens for ErrorEnum<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let injected = rust_code_injection_tokens(
+            self.config,
+            RustCodeInjectionPoint::ErrorEnum,
+        );
+
         quote! {
+            #injected
             #[derive(Debug, Clone)]
             pub enum CanError {
                 UnknownFrameId,
@@ -92,16 +123,23 @@ impl ToTokens for MsgTrait {
 
 struct MsgEnum<'a> {
     messages: &'a [Message],
+    config: &'a CodegenConfig,
 }
 
 impl ToTokens for MsgEnum<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let injected = rust_code_injection_tokens(
+            self.config,
+            RustCodeInjectionPoint::MessageEnum,
+        );
+
         let variants = self.messages.iter().map(|msg| {
             let name = format_ident!("{}", msg.name.upper_camel());
             quote! { #name(#name) }
         });
 
         quote! {
+            #injected
             #[derive(Debug, Clone)]
             pub enum Msg {
                 #( #variants, )*
@@ -203,9 +241,14 @@ impl MessageDef<'_> {
         let setters = Self::gen_setters(&signals);
 
         let doc = message_doc(&msg);
+        let injected = rust_code_injection_tokens(
+            self.config,
+            RustCodeInjectionPoint::MessageStruct,
+        );
 
         quote! {
             #doc
+            #injected
             #[derive(Debug, Clone)]
             pub struct #name {
                 data: [u8; #len],
@@ -302,7 +345,13 @@ impl MessageDef<'_> {
             let constructor_params = Self::gen_constructor_params(sigs);
             let constructor_body = Self::gen_constructor_body(sigs);
 
+            let injected = rust_code_injection_tokens(
+                self.config,
+                RustCodeInjectionPoint::MuxVariantStruct,
+            );
+
             quote! {
+                #injected
                 #[derive(Debug, Clone, Default)]
                 pub struct #struct_name {
                     data: [u8; #len],
@@ -397,7 +446,18 @@ impl MessageDef<'_> {
         let plain_getters = Self::gen_getters(&plain);
         let plain_setters = Self::gen_setters(&plain);
 
+        let mux_enum_injected = rust_code_injection_tokens(
+            self.config,
+            RustCodeInjectionPoint::MuxEnum,
+        );
+
+        let message_struct_injected = rust_code_injection_tokens(
+            self.config,
+            RustCodeInjectionPoint::MessageStruct,
+        );
+
         quote! {
+            #mux_enum_injected
             #[derive(Debug, Clone)]
             pub enum #mux_enum {
                 #( #mux_variants, )*
@@ -406,6 +466,7 @@ impl MessageDef<'_> {
             #( #variant_structs )*
 
             #doc
+            #message_struct_injected
             #[derive(Debug, Clone)]
             pub struct #name {
                 data: [u8; #len],
@@ -554,8 +615,13 @@ impl<'a> SignalValueEnumCtx<'a> {
         let variants = Self::gen_enum_variants(sve);
         let from_arms = self.gen_from_arms(sve);
         let into_arms = self.gen_into_arms(sve);
+        let injected = rust_code_injection_tokens(
+            self.config,
+            RustCodeInjectionPoint::SignalValueEnum,
+        );
 
         quote! {
+            #injected
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             pub enum #enum_name {
                 #( #variants, )*
@@ -591,8 +657,13 @@ impl<'a> SignalValueEnumCtx<'a> {
         let variants = Self::gen_enum_variants(sve);
         let from_arms = self.gen_from_arms(sve);
         let into_arms = self.gen_into_arms(sve);
+        let injected = rust_code_injection_tokens(
+            self.config,
+            RustCodeInjectionPoint::SignalValueEnum,
+        );
 
         quote! {
+            #injected
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             pub enum #enum_name {
                 #( #variants, )*

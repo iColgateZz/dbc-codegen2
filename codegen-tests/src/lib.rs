@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -75,6 +76,7 @@ fn _run_codegen(input: &Path) -> Result<()> {
         no_enum_other: true,
         no_enum_dedup: false,
         zero_zero_range_allows_all: false,
+        rust_code_injections: HashMap::new(),
     };
 
     App::run(config).context("codegen failed")?;
