@@ -38,6 +38,17 @@ impl App {
 
         let mut dbc = IRBuilder::to_ir(merged_parsed_dbc);
 
+        let mut diagnostics = Diagnostics::default();
+        CheckPipeline::new()
+            .add(CheckZeroZeroRanges {zero_zero_range_allows_all: config.zero_zero_range_allows_all})
+            .run(&dbc, &mut diagnostics);
+
+        diagnostics.emit();
+
+        if diagnostics.has_errors() {
+            exit(1);
+        }
+
         //TODO: give user options to add new nodes/remove nodes
         TransformationPipeline::new()
             .add(ComputeBitvecPositions)
@@ -50,17 +61,6 @@ impl App {
             .add(SanitizeSVENames)
             .add(SanitizeSignalNames)
             .run(&mut dbc);
-
-        let mut diagnostics = Diagnostics::default();
-        CheckPipeline::new()
-            .add(CheckZeroZeroRanges {zero_zero_range_allows_all: config.zero_zero_range_allows_all})
-            .run(&dbc, &mut diagnostics);
-
-        diagnostics.emit();
-
-        if diagnostics.has_errors() {
-            exit(1);
-        }
 
         let code = match config.lang {
             Language::Rust => codegen::rust::RustGen::generate(&dbc, &config),
