@@ -5,7 +5,7 @@ use std::process::exit;
 
 use crate::codegen;
 use crate::codegen::config::CodegenConfig;
-use crate::middle_end::nodes::{AttachSignalValueEnumType, CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics, InferSignalTypes, PrefixSignalValueEnumName, SanitizeMessageNames, SanitizeSVENames};
+use crate::middle_end::nodes::{AttachSignalValueEnumType, CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics, InferSignalTypes, PrefixSignalValueEnumName, SanitizeMessageNames, SanitizeSVENames, SanitizeSignalNames};
 use crate::middle_end::pipeline::check_pipeline::CheckPipeline;
 use crate::utils::Language;
 use crate::{
@@ -48,6 +48,7 @@ impl App {
             .add(AttachSignalValueEnumType)
             .add(SanitizeMessageNames)
             .add(SanitizeSVENames)
+            .add(SanitizeSignalNames)
             .run(&mut dbc);
 
         let mut diagnostics = Diagnostics::default();

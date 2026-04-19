@@ -21,7 +21,7 @@ struct EnumSignature {
 impl EnumSignature {
     fn from_enum(sve: &SignalValueEnum) -> Self {
         Self {
-            name: sve.name.rendered(),
+            name: sve.name.raw().into(),
             variants: sve
                 .variants
                 .iter()
