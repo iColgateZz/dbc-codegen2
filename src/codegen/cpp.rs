@@ -228,11 +228,13 @@ impl CppGen {
         end_block!(out, "");
         empty!(out);
 
-        line!(
-            out,
-            "[[nodiscard]] constexpr std::expected<{}, CanError>",
-            name
-        );
+        let return_type = if config.no_enum_other {
+            format!("std::expected<{}, CanError>", name)
+        } else {
+            name.to_string()
+        };
+
+        line!(out, "[[nodiscard]] constexpr {}", return_type);
         start_block!(
             out,
             "{}_from_raw({} v) noexcept",
@@ -356,7 +358,12 @@ impl CppGen {
         line!(out, " */");
     }
 
-    fn emit_signal_getters(out: &mut Generator, signals: &[&Signal], file: &DbcFile) {
+    fn emit_signal_getters(
+        out: &mut Generator,
+        signals: &[&Signal],
+        file: &DbcFile,
+        config: &CodegenConfig,
+    ) {
         for signal in signals {
             Self::emit_signal_doc(out, signal, file);
             let layout = &file.signal_layouts[signal.layout.0];
@@ -370,7 +377,11 @@ impl CppGen {
             let is_phys_float = phys_type == "float" || phys_type == "double";
 
             let return_type = if signal.signal_value_enum_idx.is_some() {
-                format!("std::expected<{}, CanError>", signal.name.upper_camel())
+                if config.no_enum_other {
+                    format!("std::expected<{}, CanError>", signal.name.upper_camel())
+                } else {
+                    signal.name.upper_camel().to_string()
+                }
             } else {
                 phys_type.to_string()
             };
@@ -712,7 +723,7 @@ impl CppGen {
 
         Self::emit_create_method(out, &class_name, signals);
 
-        Self::emit_signal_getters(out, signals, file);
+        Self::emit_signal_getters(out, signals, file, config);
         Self::emit_signal_setters(out, signals, file, config);
 
         line!(
@@ -775,7 +786,7 @@ impl CppGen {
                 end_block!(out, "return msg;");
                 empty!(out);
 
-                Self::emit_signal_getters(out, &sigs, file);
+                Self::emit_signal_getters(out, &sigs, file, config);
                 Self::emit_signal_setters(out, &sigs, file, config);
 
                 line!(
@@ -901,7 +912,7 @@ impl CppGen {
                 end_block!(out, "return msg;");
                 empty!(out);
 
-                Self::emit_signal_getters(out, &plain_sigs, file);
+                Self::emit_signal_getters(out, &plain_sigs, file, config);
                 Self::emit_signal_setters(out, &plain_sigs, file, config);
 
                 let mux_layout = &file.signal_layouts[mux_sig.layout.0];
