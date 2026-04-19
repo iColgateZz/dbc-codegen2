@@ -221,46 +221,129 @@ impl CppGen {
         let name = &signal.name.upper_camel();
         let cpp_type = &signal.physical_type.as_cpp_type();
 
-        start_block!(out, "enum class {} : {}", name, cpp_type);
-        for variant in &enum_def.variants {
-            line!(out, "{} = {},", variant.description, variant.value)
-        }
-        end_block!(out, "");
-        empty!(out);
+        if config.no_enum_other {
+            start_block!(out, "enum class {} : {}", name, cpp_type);
+            for variant in &enum_def.variants {
+                line!(out, "{} = {},", variant.description, variant.value);
+            }
+            end_block!(out, "");
+            empty!(out);
 
-        let return_type = if config.no_enum_other {
-            format!("std::expected<{}, CanError>", name)
-        } else {
-            name.to_string()
-        };
-
-        line!(out, "[[nodiscard]] constexpr {}", return_type);
-        start_block!(
-            out,
-            "{}_from_raw({} v) noexcept",
-            name.to_snake_case(),
-            cpp_type
-        );
-        start_block!(out, "switch (v)");
-        for variant in &enum_def.variants {
             line!(
                 out,
-                "case {}: return {}::{};",
-                variant.value,
-                name,
-                variant.description
+                "[[nodiscard]] constexpr std::expected<{}, CanError>",
+                name
             );
-        }
-        if !config.no_enum_other {
-            end_block!(out, "default: return static_cast<{}>(v);", name);
-        } else {
+            start_block!(
+                out,
+                "{}_from_raw({} v) noexcept",
+                name.to_snake_case(),
+                cpp_type
+            );
+            start_block!(out, "switch (v)");
+            for variant in &enum_def.variants {
+                line!(
+                    out,
+                    "case {}: return {}::{};",
+                    variant.value,
+                    name,
+                    variant.description
+                );
+            }
             end_block!(
                 out,
                 "default: return std::unexpected(CanError::InvalidEnumValue);"
             );
+            end_block!(out, "");
+            empty!(out);
+        } else {
+            start_block!(out, "struct {}", name);
+
+            start_block!(out, "enum class Kind : {}", cpp_type);
+            for variant in &enum_def.variants {
+                line!(out, "{} = {},", variant.description, variant.value);
+            }
+            line!(out, "_other,");
+            end_block!(out, "");
+            empty!(out);
+
+            line!(out, "Kind kind;");
+            line!(out, "{} raw; // only meaningful when kind == Kind::_other", cpp_type);
+            empty!(out);
+
+            for variant in &enum_def.variants {
+                line!(
+                    out,
+                    "static constexpr {} {}() noexcept {{ return {{Kind::{}, {{}}}}; }}",
+                    name,
+                    variant.description,
+                    variant.description
+                );
+            }
+            line!(
+                out,
+                "static constexpr {} _other({} v) noexcept {{ return {{Kind::_other, v}}; }}",
+                name,
+                cpp_type
+            );
+            empty!(out);
+
+            line!(
+                out,
+                "constexpr bool is_other() const noexcept {{ return kind == Kind::_other; }}"
+            );
+            line!(
+                out,
+                "constexpr {} raw_value() const noexcept {{ return raw; }}",
+                cpp_type
+            );
+            empty!(out);
+
+            // to_raw — round-trips back to the wire integer (mirrors Rust's From<Enum> for T)
+            start_block!(out, "constexpr {} to_raw() const noexcept", cpp_type);
+            start_block!(out, "switch (kind)");
+            for variant in &enum_def.variants {
+                line!(
+                    out,
+                    "case Kind::{}: return {};",
+                    variant.description,
+                    variant.value
+                );
+            }
+            end_block!(out, "default: return raw;");
+            end_block!(out, "");
+            empty!(out);
+
+            line!(
+                out,
+                "constexpr bool operator==(const {}& other) const noexcept = default;",
+                name
+            );
+
+            end_block!(out, "");
+            empty!(out);
+
+            line!(out, "[[nodiscard]] constexpr {}", name);
+            start_block!(
+                out,
+                "{}_from_raw({} v) noexcept",
+                name.to_snake_case(),
+                cpp_type
+            );
+            start_block!(out, "switch (v)");
+            for variant in &enum_def.variants {
+                line!(
+                    out,
+                    "case {}: return {}::{}();",
+                    variant.value,
+                    name,
+                    variant.description
+                );
+            }
+            end_block!(out, "default: return {}::_other(v);", name);
+            end_block!(out, "");
+            empty!(out);
         }
-        end_block!(out, "");
-        empty!(out);
     }
 
     fn emit_message_doc(out: &mut Generator, msg: &Message) {
@@ -572,16 +655,20 @@ impl CppGen {
 
             if signal.signal_value_enum_idx.is_some() {
                 let raw_type = signal.raw_type.as_cpp_type();
+                let encode_expr = if config.no_enum_other {
+                    format!("static_cast<{}>({})", raw_type, field_name)
+                } else {
+                    format!("static_cast<{}>({}.to_raw())", raw_type, field_name)
+                };
                 line!(
                     out,
-                    "detail::{}<{}>({}, {}, {}, static_cast<{}>({}));",
+                    "detail::{}<{}>({}, {}, {}, {});",
                     insert_fn,
                     raw_type,
                     data_expr,
                     layout.bitvec_start,
                     layout.bitvec_end,
-                    raw_type,
-                    field_name
+                    encode_expr
                 );
             } else if is_raw_float {
                 let uint_repr = Self::cpp_uint_repr_for_float(&signal.raw_type);
