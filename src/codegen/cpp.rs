@@ -221,14 +221,14 @@ impl CppGen {
         let name = &enum_def.name.upper_camel();
         let cpp_type = &signal.physical_type.as_cpp_type();
 
-        if config.no_enum_other {
-            start_block!(out, "enum class {} : {}", name, cpp_type);
-            for variant in &enum_def.variants {
-                line!(out, "{} = {},", variant.description, variant.value);
-            }
-            end_block!(out, "");
-            empty!(out);
+        start_block!(out, "enum class {} : {}", name, cpp_type);
+        for variant in &enum_def.variants {
+            line!(out, "{} = {},", variant.description, variant.value);
+        }
+        end_block!(out, "");
+        empty!(out);
 
+        if config.no_enum_other {
             line!(
                 out,
                 "[[nodiscard]] constexpr std::expected<{}, CanError>",
@@ -255,78 +255,7 @@ impl CppGen {
                 "default: return std::unexpected(CanError::InvalidEnumValue);"
             );
             end_block!(out, "");
-            empty!(out);
         } else {
-            start_block!(out, "struct {}", name);
-
-            start_block!(out, "enum class Kind : {}", cpp_type);
-            for variant in &enum_def.variants {
-                line!(out, "{} = {},", variant.description, variant.value);
-            }
-            line!(out, "_other,");
-            end_block!(out, "");
-            empty!(out);
-
-            line!(out, "Kind kind;");
-            line!(
-                out,
-                "{} raw; // only meaningful when kind == Kind::_other",
-                cpp_type
-            );
-            empty!(out);
-
-            for variant in &enum_def.variants {
-                line!(
-                    out,
-                    "static constexpr {} {}() noexcept {{ return {{Kind::{}, {{}}}}; }}",
-                    name,
-                    variant.description,
-                    variant.description
-                );
-            }
-            line!(
-                out,
-                "static constexpr {} _other({} v) noexcept {{ return {{Kind::_other, v}}; }}",
-                name,
-                cpp_type
-            );
-            empty!(out);
-
-            line!(
-                out,
-                "constexpr bool is_other() const noexcept {{ return kind == Kind::_other; }}"
-            );
-            line!(
-                out,
-                "constexpr {} raw_value() const noexcept {{ return raw; }}",
-                cpp_type
-            );
-            empty!(out);
-
-            // to_raw — round-trips back to the wire integer (mirrors Rust's From<Enum> for T)
-            start_block!(out, "constexpr {} to_raw() const noexcept", cpp_type);
-            start_block!(out, "switch (kind)");
-            for variant in &enum_def.variants {
-                line!(
-                    out,
-                    "case Kind::{}: return {};",
-                    variant.description,
-                    variant.value
-                );
-            }
-            end_block!(out, "default: return raw;");
-            end_block!(out, "");
-            empty!(out);
-
-            line!(
-                out,
-                "constexpr bool operator==(const {}& other) const noexcept = default;",
-                name
-            );
-
-            end_block!(out, "");
-            empty!(out);
-
             line!(out, "[[nodiscard]] constexpr {}", name);
             start_block!(
                 out,
@@ -334,20 +263,10 @@ impl CppGen {
                 name.to_snake_case(),
                 cpp_type
             );
-            start_block!(out, "switch (v)");
-            for variant in &enum_def.variants {
-                line!(
-                    out,
-                    "case {}: return {}::{}();",
-                    variant.value,
-                    name,
-                    variant.description
-                );
-            }
-            end_block!(out, "default: return {}::_other(v);", name);
+            line!(out, "return static_cast<{}>(v);", name);
             end_block!(out, "");
-            empty!(out);
         }
+        empty!(out);
     }
 
     fn emit_message_doc(out: &mut Generator, msg: &Message) {
@@ -695,11 +614,7 @@ impl CppGen {
                 );
             } else if signal.signal_value_enum_idx.is_some() {
                 let raw_type = signal.raw_type.as_cpp_type();
-                let encode_expr = if config.no_enum_other {
-                    format!("static_cast<{}>({})", raw_type, field_name)
-                } else {
-                    format!("static_cast<{}>({}.to_raw())", raw_type, field_name)
-                };
+                let encode_expr = format!("static_cast<{}>({})", raw_type, field_name);
                 line!(
                     out,
                     "detail::{}<{}>({}, {}, {}, {});",
