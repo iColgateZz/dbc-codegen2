@@ -1,7 +1,6 @@
 use can_dbc::Dbc as ParsedDbc;
 use std::fs;
 use std::path::PathBuf;
-use std::process::exit;
 
 use crate::codegen;
 use crate::codegen::config::CodegenConfig;
@@ -35,7 +34,6 @@ impl App {
             merge_parsed_dbcs(&mut acc, dbc);
             acc
         });
-
         let mut dbc = IRBuilder::to_ir(merged_parsed_dbc);
 
         let mut diagnostics = Diagnostics::default();
