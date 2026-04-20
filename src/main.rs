@@ -118,7 +118,10 @@ fn main() {
             //     "#[cfg_attr(feature = \"defmt\", derive(defmt::Format))]",
             // );
 
-            let _ = App::run(config);
+            if let Err(err) = App::run(config) {
+                eprintln!("{:#}", err);
+                std::process::exit(1);
+            }
         }
     }
 }

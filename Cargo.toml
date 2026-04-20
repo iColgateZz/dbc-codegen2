@@ -6,7 +6,7 @@ members = [
 
 [package]
 name = "dbc-codegen2"
-version = "0.1.2"
+version = "0.1.4"
 edition = "2024"
 description = "DBC code generator for CAN bus messages"
 license = "MIT"
@@ -14,8 +14,10 @@ repository = "https://github.com/iColgateZz/dbc-codegen2"
 readme = "README.md"
 keywords = ["can", "dbc", "codegen", "embedded", "automotive"]
 categories = ["embedded", "automotive"]
+exclude = ["codegen-tests/*", "data/*", "resources/*"]
 
 [dependencies]
+anyhow = "1"
 can-dbc = "8.0.0"
 embedded-can = "0.4"
 prettyplease = "0.2"

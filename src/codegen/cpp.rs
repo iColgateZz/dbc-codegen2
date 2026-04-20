@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use heck::{ToSnakeCase, ToUpperCamelCase};
+use heck::ToSnakeCase;
 
 use crate::{
     DbcFile,

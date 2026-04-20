@@ -409,8 +409,6 @@ impl MessageDef<'_> {
             let fn_name = format_ident!("set_mux{}", idx);
             let struct_name = format_ident!("{}Mux{}", name, idx);
 
-            let mux_raw_ty = mux_signal.raw_rust_type();
-
             let (start, end) = mux_signal.start_end_bit();
             let order = mux_signal.bitvec_order();
             let store = mux_signal.store_fn();
@@ -424,7 +422,7 @@ impl MessageDef<'_> {
                     self.data = b0.bitor(b1).into_inner();
 
                     self.data.view_bits_mut::<#order>()[#start..#end]
-                        .#store(#idx as #mux_raw_ty);
+                        .#store(#idx);
 
                     Ok(())
                 }
@@ -810,6 +808,7 @@ impl<'a> SignalCtx<'a> {
         }
     }
 
+    //TODO: There may be some issues with large values
     fn range_check(&self) -> TokenStream {
         if self.is_enum() {
             return quote! {};
@@ -822,13 +821,38 @@ impl<'a> SignalCtx<'a> {
             return quote! {};
         }
 
-        let min = self.f64_to_correct_literal_with_type(min);
-        let max = self.f64_to_correct_literal_with_type(max);
+        let ty_min = self.signal.physical_type.min_value_f64();
+        let ty_max = self.signal.physical_type.max_value_f64();
 
-        //TODO: no need to check if unsigned value is less than 0
-        quote! {
-            if value < #min || value > #max {
-                return Err(CanError::ValueOutOfRange);
+        let needs_min_check = min > ty_min;
+        let needs_max_check = max < ty_max;
+
+        match (needs_min_check, needs_max_check) {
+            (false, false) => quote! {},
+            (true, false) => {
+                let min = self.f64_to_correct_literal_with_type(min);
+                quote! {
+                    if value < #min {
+                        return Err(CanError::ValueOutOfRange);
+                    }
+                }
+            }
+            (false, true) => {
+                let max = self.f64_to_correct_literal_with_type(max);
+                quote! {
+                    if value > #max {
+                        return Err(CanError::ValueOutOfRange);
+                    }
+                }
+            }
+            (true, true) => {
+                let min = self.f64_to_correct_literal_with_type(min);
+                let max = self.f64_to_correct_literal_with_type(max);
+                quote! {
+                    if value < #min || value > #max {
+                        return Err(CanError::ValueOutOfRange);
+                    }
+                }
             }
         }
     }

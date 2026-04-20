@@ -5,7 +5,7 @@ use std::process::exit;
 
 use crate::codegen;
 use crate::codegen::config::CodegenConfig;
-use crate::middle_end::nodes::{AttachSignalValueEnumType, CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics, InferSignalTypes, PrefixSignalValueEnumName, SanitizeMessageNames, SanitizeSVENames};
+use crate::middle_end::nodes::{AttachSignalValueEnumType, CheckSignalLayoutValidity, CheckUniqueMessageIds, CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics, InferSignalTypes, PrefixSignalValueEnumName, SanitizeMessageNames, SanitizeSVENames, SanitizeSignalNames};
 use crate::middle_end::pipeline::check_pipeline::CheckPipeline;
 use crate::utils::Language;
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
 pub struct App;
 
 impl App {
-    pub fn run(config: CodegenConfig) -> std::io::Result<()> {
+    pub fn run(config: CodegenConfig) -> anyhow::Result<()> {
         let mut parsed_dbcs = config.inputs.iter().map(|input| {
             let data = fs::read_to_string(input)
                 .unwrap_or_else(|e| panic!("Unable to read input file `{input}`: {e}"));
@@ -38,6 +38,19 @@ impl App {
 
         let mut dbc = IRBuilder::to_ir(merged_parsed_dbc);
 
+        let mut diagnostics = Diagnostics::default();
+        CheckPipeline::new()
+            .add(CheckZeroZeroRanges {zero_zero_range_allows_all: config.zero_zero_range_allows_all})
+            .add(CheckUniqueMessageIds)
+            .add(CheckSignalLayoutValidity)
+            .run(&dbc, &mut diagnostics);
+
+        diagnostics.emit();
+
+        if diagnostics.has_errors() {
+            anyhow::bail!("En error was found during validation phase!");
+        }
+
         //TODO: give user options to add new nodes/remove nodes
         TransformationPipeline::new()
             .add(ComputeBitvecPositions)
@@ -48,18 +61,8 @@ impl App {
             .add(AttachSignalValueEnumType)
             .add(SanitizeMessageNames)
             .add(SanitizeSVENames)
+            .add(SanitizeSignalNames)
             .run(&mut dbc);
-
-        let mut diagnostics = Diagnostics::default();
-        CheckPipeline::new()
-            .add(CheckZeroZeroRanges {zero_zero_range_allows_all: config.zero_zero_range_allows_all})
-            .run(&dbc, &mut diagnostics);
-
-        diagnostics.emit();
-
-        if diagnostics.has_errors() {
-            exit(1);
-        }
 
         let code = match config.lang {
             Language::Rust => codegen::rust::RustGen::generate(&dbc, &config),

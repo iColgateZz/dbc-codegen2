@@ -67,6 +67,24 @@ impl PhysicalType {
             _ => false,
         }
     }
+
+    pub fn min_value_f64(&self) -> f64 {
+        match self {
+            PhysicalType::Float32 => f32::MIN as f64,
+            PhysicalType::Float64 => f64::MIN,
+            PhysicalType::Integer(repr) => repr.min_value_i64() as f64,
+            PhysicalType::Enum { repr, .. } => repr.min_value_i64() as f64,
+        }
+    }
+
+    pub fn max_value_f64(&self) -> f64 {
+        match self {
+            PhysicalType::Float32 => f32::MAX as f64,
+            PhysicalType::Float64 => f64::MAX,
+            PhysicalType::Integer(repr) => repr.max_value_i64() as f64,
+            PhysicalType::Enum { repr, .. } => repr.max_value_i64() as f64,
+        }
+    }
 }
 
 impl RustType for PhysicalType {
@@ -137,6 +155,33 @@ impl IntReprType {
             (true, 17..=32) => IntReprType::I32,
             (true, _) => IntReprType::I64,
         }
+    }
+
+    pub fn min_value_i64(&self) -> i64 {
+        match self {
+            Self::U8 | Self::U16 | Self::U32 | Self::U64 => 0,
+            Self::I8 => i8::MIN as i64,
+            Self::I16 => i16::MIN as i64,
+            Self::I32 => i32::MIN as i64,
+            Self::I64 => i64::MIN,
+        }
+    }
+
+    pub fn max_value_i64(&self) -> i64 {
+        match self {
+            Self::U8 => u8::MAX as i64,
+            Self::U16 => u16::MAX as i64,
+            Self::U32 => u32::MAX as i64,
+            Self::U64 => i64::MAX,
+            Self::I8 => i8::MAX as i64,
+            Self::I16 => i16::MAX as i64,
+            Self::I32 => i32::MAX as i64,
+            Self::I64 => i64::MAX,
+        }
+    }
+
+    pub fn is_unsigned(&self) -> bool {
+        matches!(self, Self::U8 | Self::U16 | Self::U32 | Self::U64)
     }
 }
 
