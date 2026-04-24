@@ -45,6 +45,11 @@ impl CheckNode for CheckUnsupportedMultiplexing {
                         .join(", "),
                 ));
             }
+
+        }
+
+        if file.has_extended_mux_symbols {
+            diagnostics.error("File contains extended multiplex symbols. This feature is not supported.");
         }
     }
 }

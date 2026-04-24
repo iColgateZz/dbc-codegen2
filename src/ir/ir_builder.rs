@@ -42,6 +42,7 @@ impl IRBuilder {
 
         let mut file = DbcFile::default();
         file.nodes = map_into(value.nodes);
+        file.has_extended_mux_symbols = !value.extended_multiplex.is_empty();
 
         Self {
             file,

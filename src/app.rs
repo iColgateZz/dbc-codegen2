@@ -112,5 +112,5 @@ fn merge_parsed_dbcs(dst: &mut ParsedDbc, mut src: ParsedDbc) {
     // dst.signal_type_refs.append(&mut src.signal_type_refs);
     // dst.signal_groups.append(&mut src.signal_groups);
     dst.signal_extended_value_type_list.append(&mut src.signal_extended_value_type_list);
-    // dst.extended_multiplex.append(&mut src.extended_multiplex);
+    dst.extended_multiplex.append(&mut src.extended_multiplex);
 }

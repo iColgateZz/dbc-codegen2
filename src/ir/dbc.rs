@@ -8,6 +8,7 @@ pub struct DbcFile {
     pub signals: Vec<Signal>,
     pub signal_layouts: Vec<SignalLayout>,
     pub signal_value_enums: Vec<SignalValueEnum>,
+    pub has_extended_mux_symbols: bool,
     //TODO: consider how to use can_dbc::value_tables. Basically,
     //      these are global enums for signal values
 
@@ -18,6 +19,4 @@ pub struct DbcFile {
     //      signal_type_refs. original dbc-codegen does not
     //      support them. They allow to define a signal once
     //      and then reuse them later.
-
-    //TODO: can_dbc::extended_multiplex is probably also needed
 }
