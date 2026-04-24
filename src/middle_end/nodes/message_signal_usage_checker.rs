@@ -16,7 +16,6 @@ struct SpanInfo<'a> {
     size: u64,
 }
 
-//TODO: go through the logic once again and ensure correctness.
 //TODO: add another node to ensure there is only 1 multiplexor per message
 //      give errors on MultiplexorAndMultiplexed signals?
 impl CheckNode for CheckMessageSignalUsage {
@@ -35,13 +34,8 @@ impl CheckNode for CheckMessageSignalUsage {
                     mux_signal,
                     muxed,
                 } => {
-                    let mut base_signal_idxs = plain.clone();
+                    let mut base_signal_idxs = plain;
                     base_signal_idxs.push(mux_signal);
-
-                    let base_spans = collect_spans(file, &base_signal_idxs);
-                    check_overlaps(msg.name.raw(), Some("plain"), &base_spans, diagnostics);
-                    check_sum_of_sizes(msg.name.raw(), Some("plain"), msg.size, &base_spans, diagnostics);
-                    warn_unused_bits(msg.name.raw(), Some("plain"), msg.size, &base_spans, diagnostics);
 
                     for (mux_val, group) in muxed {
                         let mut active = base_signal_idxs.clone();
@@ -145,7 +139,7 @@ fn warn_unused_bits(
 
     for span in spans {
         let end = span.end.min(msg_bits);
-        for bit in span.start.min(msg_bits - 1)..end {
+        for bit in span.start.min(msg_bits)..end {
             used[bit] = true;
         }
     }
