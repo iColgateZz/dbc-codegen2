@@ -51,6 +51,7 @@ pub enum EnumCoverage {
 
 #[derive(Debug, Clone, PartialEq, Copy)]
 pub enum PhysicalType {
+    Bool,
     Float32,
     Float64,
     Integer(IntReprType),
@@ -70,6 +71,7 @@ impl PhysicalType {
 
     pub fn min_value_f64(&self) -> f64 {
         match self {
+            PhysicalType::Bool => 0.0,
             PhysicalType::Float32 => f32::MIN as f64,
             PhysicalType::Float64 => f64::MIN,
             PhysicalType::Integer(repr) => repr.min_value_i64() as f64,
@@ -79,6 +81,7 @@ impl PhysicalType {
 
     pub fn max_value_f64(&self) -> f64 {
         match self {
+            PhysicalType::Bool => 1.0,
             PhysicalType::Float32 => f32::MAX as f64,
             PhysicalType::Float64 => f64::MAX,
             PhysicalType::Integer(repr) => repr.max_value_i64() as f64,
@@ -90,6 +93,7 @@ impl PhysicalType {
 impl RustType for PhysicalType {
     fn as_rust_type(&self) -> &'static str {
         match self {
+            PhysicalType::Bool => "bool",
             PhysicalType::Float32 => "f32",
             PhysicalType::Float64 => "f64",
             PhysicalType::Integer(v) => v.as_rust_type(),
@@ -101,6 +105,7 @@ impl RustType for PhysicalType {
 impl CppType for PhysicalType {
     fn as_cpp_type(&self) -> &'static str {
         match self {
+            PhysicalType::Bool => "bool",
             PhysicalType::Float32 => "float",
             PhysicalType::Float64 => "double",
             PhysicalType::Integer(v) => v.as_cpp_type(),

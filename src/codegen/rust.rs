@@ -8,7 +8,7 @@ use crate::ir::message::{Message, MessageId};
 use crate::ir::signal::{MultiplexIndicator, Receiver, Signal};
 use crate::ir::signal_layout::{ByteOrder, SignalLayout};
 use crate::ir::signal_value_enum::SignalValueEnum;
-use crate::ir::signal_value_type::{IntReprType, RustFloatLiteral, RustIntegerLiteral, RustType};
+use crate::ir::signal_value_type::{IntReprType, RustFloatLiteral, RustIntegerLiteral, RustType, PhysicalType};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
@@ -763,7 +763,10 @@ impl<'a> SignalCtx<'a> {
     }
 
     fn raw_rust_type(&self) -> syn::Ident {
-        format_ident!("{}", self.signal.physical_type.as_rust_type())
+        match self.signal.physical_type {
+            PhysicalType::Bool => format_ident!("u8"),
+            _ => format_ident!("{}", self.signal.physical_type.as_rust_type()),
+        }
     }
 
     fn is_enum(&self) -> bool {
@@ -772,6 +775,10 @@ impl<'a> SignalCtx<'a> {
 
     fn is_float(&self) -> bool {
         self.signal.physical_type.is_float()
+    }
+
+    fn is_bool(&self) -> bool {
+        matches!(self.signal.physical_type, PhysicalType::Bool)
     }
 
     fn factor_literal(&self) -> TokenStream {
@@ -808,7 +815,7 @@ impl<'a> SignalCtx<'a> {
 
     //TODO: There may be some issues with large values
     fn range_check(&self) -> TokenStream {
-        if self.is_enum() {
+        if self.is_enum() || self.is_bool() {
             return quote! {};
         }
 
@@ -913,6 +920,8 @@ impl<'a> SignalCtx<'a> {
             } else {
                 quote! { #enum_name::from(#raw as #raw_ty) }
             }
+        } else if self.is_bool() {
+            quote! { #raw == 1 }
         } else if self.is_float() {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
@@ -932,7 +941,7 @@ impl<'a> SignalCtx<'a> {
         let order = self.bitvec_order();
         let store = self.store_fn();
 
-        if self.is_enum() {
+        if self.is_enum() || self.is_bool() {
             let ty = self.raw_rust_type();
             quote! { self.data.view_bits_mut::<#order>()[#start..#end].#store(#ty::from(value)); }
         } else if self.is_float() {

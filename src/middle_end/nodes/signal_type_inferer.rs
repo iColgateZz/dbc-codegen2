@@ -81,13 +81,21 @@ fn infer_physical_type(sig: &Signal, sig_layout: &SignalLayout, sve_option: Opti
         RawType::Float32 => PhysicalType::Float32,
         RawType::Float64 => PhysicalType::Float64,
         RawType::Integer(int_repr) => {
-            if is_float_scaled(sig_layout) {
+            if is_bool_signal(sig_layout) {
+                PhysicalType::Bool
+            } else if is_float_scaled(sig_layout) {
                 PhysicalType::Float32
             } else {
                 PhysicalType::Integer(*int_repr)
             }
         }
     }
+}
+
+fn is_bool_signal(sig_layout: &SignalLayout) -> bool {
+    sig_layout.size == 1
+        && sig_layout.factor == 1.0
+        && sig_layout.offset == 0.0
 }
 
 //TODO: maybe use epsilon comparison

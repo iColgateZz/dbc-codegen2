@@ -412,7 +412,7 @@ impl MotorStatusMsg {
     pub const ID: Id = Id::Standard(unsafe { StandardId::new_unchecked(400u16) });
     pub const LEN: usize = 3usize;
     pub fn new(
-        motor_status_wheel_error: u8,
+        motor_status_wheel_error: bool,
         motor_status_speed_kph: f32,
     ) -> Result<Self, CanError> {
         let mut msg = Self { data: [0u8; Self::LEN] };
@@ -431,12 +431,12 @@ impl MotorStatusMsg {
     ///- Offset: 0
     ///- Byte order: LittleEndian
     ///- Type: unsigned
-    pub fn motor_status_wheel_error(&self) -> u8 {
+    pub fn motor_status_wheel_error(&self) -> bool {
         let raw_motor_status_wheel_error = self
             .data
             .view_bits::<Lsb0>()[0usize..1usize]
             .load_le::<u8>();
-        (raw_motor_status_wheel_error) * (1u8) + (0u8)
+        raw_motor_status_wheel_error == 1
     }
     ///MOTOR_STATUS_speed_kph
     ///- Min: 0
@@ -459,10 +459,8 @@ impl MotorStatusMsg {
     ///Set value of MOTOR_STATUS_wheel_error
     ///- Min: 0
     ///- Max: 0
-    pub fn set_motor_status_wheel_error(&mut self, value: u8) -> Result<(), CanError> {
-        self.data
-            .view_bits_mut::<Lsb0>()[0usize..1usize]
-            .store_le((value - (0u8)) / (1u8));
+    pub fn set_motor_status_wheel_error(&mut self, value: bool) -> Result<(), CanError> {
+        self.data.view_bits_mut::<Lsb0>()[0usize..1usize].store_le(u8::from(value));
         Ok(())
     }
     ///Set value of MOTOR_STATUS_speed_kph
