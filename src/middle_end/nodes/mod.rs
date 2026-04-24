@@ -13,6 +13,7 @@ pub mod signal_name_sanitizer;
 pub mod message_id_checker;
 pub mod signal_layout_checker;
 pub mod message_signal_usage_checker;
+pub mod unsupported_multiplexing_checker;
 
 pub use sve_variant_sanitizer::*;
 pub use signal_type_inferer::*;
@@ -29,3 +30,4 @@ pub use signal_name_sanitizer::*;
 pub use message_id_checker::*;
 pub use signal_layout_checker::*;
 pub use message_signal_usage_checker::*;
+pub use unsupported_multiplexing_checker::*;
