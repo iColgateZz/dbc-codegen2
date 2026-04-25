@@ -1146,6 +1146,19 @@ impl ToTokens for RustTestModule<'_> {
                 use super::*;
                 use arbitrary::Unstructured;
 
+                const SEEDS: &[&[u8]] = &[
+                    &[0u8; 128],
+                    &[1u8; 128],
+                    &[2u8; 128],
+                    &[3u8; 128],
+                    &[5u8; 128],
+                    &[8u8; 128],
+                    &[13u8; 128],
+                    &[21u8; 128],
+                    &[34u8; 128],
+                    &[55u8; 128],
+                ];
+
                 #( #tests )*
             }
         }
@@ -1200,19 +1213,6 @@ impl ToTokens for PlainMessageTest<'_> {
         quote! {
             #[test]
             fn #test_name(){
-                const SEEDS: &[&[u8]] = &[
-                    &[0u8; 128],
-                    &[1u8; 128],
-                    &[2u8; 128],
-                    &[3u8; 128],
-                    &[5u8; 128],
-                    &[8u8; 128],
-                    &[13u8; 128],
-                    &[21u8; 128],
-                    &[34u8; 128],
-                    &[55u8; 128],
-                ];
-
                 for seed in SEEDS {
                     let mut u = Unstructured::new(seed);
 
@@ -1262,11 +1262,29 @@ impl <'a> SignalCtx<'a> {
             };
         }
 
+        let ty = self.rust_type();
+        let min = self.f64_to_correct_literal_with_type(self.layout.min);
+        let max = self.f64_to_correct_literal_with_type(self.layout.max);
+
         if self.is_float() {
-            return self.test_float_value_statement(var, arbitrary);
+            return quote! {
+                let #var: #ty = {
+                    let mut x: #ty = #arbitrary.arbitrary()
+                        .expect("failed to generate physical float value");
+                    x = x.min(#max);
+                    x.max(#min)
+                };
+            }
         }
 
-        self.test_integer_value_statement(var, arbitrary)
+        quote! {
+            let #var: #ty = {
+                let raw = #arbitrary
+                    .int_in_range(#min..=#max)
+                    .expect("failed to generate physical interger value");
+                raw
+            };
+        }
     }
 
     fn test_getter_assertion(&self, expected: &Ident) -> TokenStream {
@@ -1302,125 +1320,5 @@ impl <'a> SignalCtx<'a> {
                 );
             }
         }
-    }
-
-    fn test_integer_value_statement(&self, var: &Ident, arbitrary: Ident) -> TokenStream {
-        let ty = self.rust_type();
-
-        let min = self.f64_to_correct_literal_with_type(self.layout.min);
-        let max = self.f64_to_correct_literal_with_type(self.layout.max);
-
-        quote! {
-            let #var: #ty = {
-                let raw = #arbitrary
-                    .int_in_range(#min..=#max)
-                    .expect("failed to generate physical interger value");
-                raw
-            };
-        }
-    }
-
-    fn test_float_value_statement(&self, var: &Ident, arbitrary: Ident) -> TokenStream {
-        let ty = self.rust_type();
-
-        let raw_ty = self.int_repr_for_float();
-        let raw_min = self.raw_min_literal_for_unsigned_storage();
-        let raw_max = self.raw_max_literal_for_unsigned_storage();
-
-        let factor = self.factor_literal();
-        let offset = self.offset_literal();
-
-        let min = self.f64_to_correct_literal_with_type(self.layout.min);
-        let max = self.f64_to_correct_literal_with_type(self.layout.max);
-
-        let enforce_range = !(self.config.zero_zero_range_allows_all
-            && self.layout.min == 0.0
-            && self.layout.max == 0.0);
-
-        let range_guard = if enforce_range {
-            quote! {
-                if value >= #min && value <= #max {
-                    selected = Some(value);
-                    break;
-                }
-            }
-        } else {
-            quote! {
-                selected = Some(value);
-                break;
-            }
-        };
-
-        quote! {
-            let #var: #ty = {
-                let mut selected: Option<#ty> = None;
-
-                loop {
-                    let raw: #raw_ty = #arbitrary
-                        .int_in_range(#raw_min..=#raw_max)
-                        .expect("failed to generate raw float-backed signal value");
-
-                    let value: #ty = (raw as #ty) * (#factor) + (#offset);
-
-                    #range_guard
-                }
-
-                selected.expect("could not generate encodable float signal value")
-            };
-        }
-    }
-
-    fn raw_min_literal(&self) -> TokenStream {
-        let signed = matches!(
-            self.layout.value_type,
-            crate::ir::signal_layout::ValueType::Signed
-        );
-
-        let min = if signed {
-            if self.layout.size == 0 {
-                0i128
-            } else {
-                -(1i128 << (self.layout.size - 1))
-            }
-        } else {
-            0i128
-        };
-
-        TokenStream::from_str(&min.to_string()).unwrap()
-    }
-
-    fn raw_max_literal(&self) -> TokenStream {
-        let signed = matches!(
-            self.layout.value_type,
-            crate::ir::signal_layout::ValueType::Signed
-        );
-
-        let max = if signed {
-            if self.layout.size == 0 {
-                0i128
-            } else {
-                (1i128 << (self.layout.size - 1)) - 1
-            }
-        } else if self.layout.size >= 128 {
-            i128::MAX
-        } else {
-            (1i128 << self.layout.size) - 1
-        };
-
-        TokenStream::from_str(&max.to_string()).unwrap()
-    }
-
-    fn raw_min_literal_for_unsigned_storage(&self) -> TokenStream {
-        TokenStream::from_str("0").unwrap()
-    }
-
-    fn raw_max_literal_for_unsigned_storage(&self) -> TokenStream {
-        let max = if self.layout.size >= 128 {
-            i128::MAX
-        } else {
-            (1i128 << self.layout.size) - 1
-        };
-
-        TokenStream::from_str(&max.to_string()).unwrap()
     }
 }
