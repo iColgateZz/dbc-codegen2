@@ -1,8 +1,9 @@
 [package]
-name = "codegen-validator"
+name = "data"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+arbitrary = "1.4.2"
 bitvec = "1.0"
 embedded-can = "0.4"
