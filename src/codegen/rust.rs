@@ -8,7 +8,7 @@ use crate::ir::message::{Message, MessageId};
 use crate::ir::signal::{MultiplexIndicator, Receiver, Signal};
 use crate::ir::signal_layout::{ByteOrder, SignalLayout};
 use crate::ir::signal_value_enum::SignalValueEnum;
-use crate::ir::signal_value_type::{IntReprType, PhysicalType, RustFloatLiteral, RustIntegerLiteral, RustType};
+use crate::ir::signal_value_type::{IntReprType, PhysicalType, RawType, RustFloatLiteral, RustIntegerLiteral, RustType};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
@@ -781,22 +781,17 @@ impl<'a> SignalCtx<'a> {
         self.signal.physical_type.is_float()
     }
 
-    fn is_signed(&self) -> bool {
-        matches!(self.signal.physical_type, 
-            PhysicalType::Integer(IntReprType::I8) | 
-            PhysicalType::Integer(IntReprType::I16) | 
-            PhysicalType::Integer(IntReprType::I32) | 
-            PhysicalType::Integer(IntReprType::I64))
-    }
-
-    fn unsigned_rust_type_for_signed_int(&self) -> &str {
-        //TODO: should probably match on raw type
-        match self.signal.physical_type {
-            PhysicalType::Integer(IntReprType::I8) => "u8",
-            PhysicalType::Integer(IntReprType::I16) => "u16",
-            PhysicalType::Integer(IntReprType::I32) => "u32",
-            PhysicalType::Integer(IntReprType::I64) => "u64",
-            _ => panic!("only works on signed intergers"),
+    fn unsigned_rust_type(&self) -> &str {
+        match self.signal.raw_type {
+            RawType::Integer(IntReprType::I8) => "u8",
+            RawType::Integer(IntReprType::I16) => "u16",
+            RawType::Integer(IntReprType::I32) => "u32",
+            RawType::Integer(IntReprType::I64) => "u64",
+            RawType::Integer(IntReprType::U8) => "u8",
+            RawType::Integer(IntReprType::U16) => "u16",
+            RawType::Integer(IntReprType::U32) => "u32",
+            RawType::Integer(IntReprType::U64) => "u64",
+            _ => panic!("only works on intergers"),
         }
     }
 
@@ -919,13 +914,10 @@ impl<'a> SignalCtx<'a> {
         if self.is_enum() {
             let raw_ty = self.raw_rust_type();
             quote! { let #raw = self.data.view_bits::<#order>()[#start..#end].#load::<#raw_ty>(); }
-        } else if self.is_signed() {
-            let ty = self.unsigned_rust_type_for_signed_int();
+        } else if !self.is_float() {
+            let ty = self.unsigned_rust_type();
             let ty = format_ident!("{ty}");
             quote! { let #raw = self.data.view_bits::<#order>()[#start..#end].#load::<#ty>(); }
-        } else if !self.is_float() {
-            let raw_ty = self.raw_rust_type();
-            quote! { let #raw = self.data.view_bits::<#order>()[#start..#end].#load::<#raw_ty>(); }
         } else {
             // bitvec cannot read f32/f64 from bits. Code finds the best fitting unsigned type
             // and reads data into the type. The data is later casted to the correct float type.
@@ -955,15 +947,11 @@ impl<'a> SignalCtx<'a> {
             let offset = self.offset_literal();
             let ty = format_ident!("{}", self.signal.physical_type.as_rust_type());
             quote! { (#raw as #ty) * (#factor) + (#offset) }
-        } else if self.is_signed() {
+        } else {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             let ty = self.rust_type();
             quote! { (#raw as #ty) * (#factor) + (#offset) }
-        } else {
-            let factor = self.factor_literal();
-            let offset = self.offset_literal();
-            quote! { (#raw) * (#factor) + (#offset) }
         }
     }
 
@@ -986,8 +974,10 @@ impl<'a> SignalCtx<'a> {
         } else {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
+            let ty = self.unsigned_rust_type();
+            let ty = format_ident!("{ty}");
             quote! {
-                self.data.view_bits_mut::<#order>()[#start..#end].#store((value - (#offset)) / (#factor));
+                self.data.view_bits_mut::<#order>()[#start..#end].#store(((value - (#offset)) / (#factor)) as #ty);
             }
         }
     }
