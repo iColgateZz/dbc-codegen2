@@ -934,8 +934,7 @@ impl<'a> SignalCtx<'a> {
         }
     }
 
-    //TODO: add a checker node that ensures that */+- operations
-    //      are safe. dbc-codegen uses saturating_*, checked_*
+    //TODO: maybe uses wider type like i128 for intermediate ops?
     fn decode_expr(&self) -> TokenStream {
         let raw = self.raw_ident();
 

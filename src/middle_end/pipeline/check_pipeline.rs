@@ -29,5 +29,3 @@ impl CheckPipeline {
 // mux value fits raw range
 // if extended value type is f32 or f64 then signals has to be of that size
 // AttachSignalValueEnumType overwrites sve physical type. Ensure that all signals using one enum have same physical type?
-// ensure raw * factor + offset is safe
-// signal value out of allowed range
