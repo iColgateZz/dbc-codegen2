@@ -959,7 +959,11 @@ impl<'a> SignalCtx<'a> {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             let ty = self.rust_type();
-            quote! { (#raw as #ty) * (#factor) + (#offset) }
+            quote! {
+                (#raw as #ty)
+                    .saturating_mul(#factor)
+                    .saturating_add(#offset)
+            }
         }
     }
 
@@ -974,10 +978,19 @@ impl<'a> SignalCtx<'a> {
             quote! { #raw_ty::from(value) }
         } else if self.is_bool() {
             quote! { value as #raw_ty }
-        } else {
+        } else if self.is_float() {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
             quote! { ((value - (#offset)) / (#factor)) as #raw_ty }
+        } else {
+            let factor = self.factor_literal();
+            let offset = self.offset_literal();
+            quote! {
+                value
+                    .checked_sub(#offset)
+                    .and_then(|v| v.checked_div(#factor))
+                    .ok_or(CanError::ValueOutOfRange)? as #raw_ty
+            }
         };
 
         let storage_value = if self.raw_type_is_signed() {
