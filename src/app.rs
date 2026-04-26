@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::codegen;
 use crate::codegen::config::CodegenConfig;
-use crate::middle_end::nodes::{AttachSignalValueEnumType, CheckEnumVariants, CheckMessageSignalUsage, CheckSignalLayoutValidity, CheckUniqueMessageIds, CheckUnsupportedMultiplexing, CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics, InferSignalTypes, PrefixSignalValueEnumName, SanitizeMessageNames, SanitizeSVENames, SanitizeSignalNames};
+use crate::middle_end::nodes::{AttachSignalValueEnumType, CheckEnumVariants, CheckMessageSignalUsage, CheckSignalLayoutValidity, CheckSignalPhysicalRangeRepresentable, CheckUniqueMessageIds, CheckUnsupportedMultiplexing, CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics, InferSignalTypes, PrefixSignalValueEnumName, SanitizeMessageNames, SanitizeSVENames, SanitizeSignalNames};
 use crate::middle_end::pipeline::check_pipeline::CheckPipeline;
 use crate::utils::Language;
 use crate::{
@@ -48,6 +48,7 @@ impl App {
             .add(CheckMessageSignalUsage)
             .add(CheckUnsupportedMultiplexing)
             .add(CheckEnumVariants)
+            .add(CheckSignalPhysicalRangeRepresentable {zero_zero_range_allows_all: config.zero_zero_range_allows_all})
             .run(&dbc, &mut diagnostics);
 
         diagnostics.emit();
