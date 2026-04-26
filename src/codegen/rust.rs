@@ -1244,15 +1244,30 @@ impl <'a> SignalCtx<'a> {
             let enum_name = self.enum_ident();
 
             if let Some(sve) = self.sve {
+                let variants: Vec<_> = sve
+                    .variants
+                    .iter()
+                    .map(|v| {
+                        let variant = format_ident!("{}", v.description);
+                        quote! { #enum_name::#variant }
+                    })
+                    .collect();
 
-                //TODO: use other enum values as well
-                if let Some(first_variant) = sve.variants.first() {
-                    let variant = format_ident!("{}", first_variant.description);
+                let max_idx = variants.len().saturating_sub(1);
 
-                    return quote! {
-                        let #var = #enum_name::#variant;
+                return quote! {
+                    let #var = {
+                        const VARIANTS: &[#enum_name] = &[
+                            #( #variants, )*
+                        ];
+
+                        let idx = #arbitrary
+                            .int_in_range(0usize..=#max_idx)
+                            .expect("failed to generate enum variant index");
+
+                        VARIANTS[idx]
                     };
-                }
+                };
             }
 
             return quote! {
@@ -1266,6 +1281,7 @@ impl <'a> SignalCtx<'a> {
             };
         }
 
+        //TODO: if range is [0|0] then such tests do not test much
         let ty = self.rust_type();
         let min = self.f64_to_correct_literal_with_type(self.layout.min);
         let max = self.f64_to_correct_literal_with_type(self.layout.max);
