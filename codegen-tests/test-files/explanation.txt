@@ -7,10 +7,10 @@ Why tests fail?
 
 1. BMW-PHEV-HV-Battery.dbc -> attempt to subtract with overflow SG_ Cell_16 : 1|14@1+ (1,1000) [0|0] "" Vector__XXX (use checked ops?)
 2. DBC_template.dbc -> integer division by 100 in setter makes all values 0 SG_ Signal1 : 32|32@1+ (100,0) [0|100] "%"  Node1,Node2
-4. floating_point_use_float.dbc -> increase tolerance when testing floats
-5. foobar.dbc -> floating point arithmetic goes wrong
-6. motohawk_fd.dbc -> floating point arithmetic goes wrong
-7. motohawk_use_round.dbc -> floating point arithmetic goes wrong
-8. motohawk_with_comments.dbc -> floating point arithmetic goes wrong
-9. motohawk.dbc -> floating point arithmetic goes wrong
-10. timing.dbc -> floating point arithmetic goes wrong
+3. floating_point_use_float.dbc -> increase tolerance when testing floats
+4. example.dbc & all socialledge* -> dbc file has an issue:
+    SG_ MOTOR_CMD_steer : 0|4@1- (1,-5) [-5|5] "" MOTOR
+    raw value is signed, 4 bits => range -8..=7
+    factor = 1, offset = -5 => range -13..=2
+    min max = range -5..=5
+    These ranges cause problems => add a checker node that detects this
