@@ -767,10 +767,46 @@ impl<'a> SignalCtx<'a> {
     }
 
     fn raw_rust_type(&self) -> syn::Ident {
-        match self.signal.physical_type {
-            PhysicalType::Bool => format_ident!("u8"),
-            _ => format_ident!("{}", self.signal.physical_type.as_rust_type()),
+        let ty = match &self.signal.raw_type {
+            RawType::Integer(repr) => repr.as_rust_type(),
+            RawType::Float32 | RawType::Float64 => self.raw_int_repr_for_float().as_rust_type(),
+        };
+
+        format_ident!("{}", ty)
+    }
+
+    fn storage_rust_type(&self) -> syn::Ident {
+        let ty = match self.raw_int_repr_for_bit_io() {
+            IntReprType::I8 | IntReprType::U8 => "u8",
+            IntReprType::I16 | IntReprType::U16 => "u16",
+            IntReprType::I32 | IntReprType::U32 => "u32",
+            IntReprType::I64 | IntReprType::U64 => "u64",
+            _ => unreachable!("It should never assign 128 bit type")
+        };
+
+        format_ident!("{}", ty)
+    }
+
+    fn raw_int_repr_for_bit_io(&self) -> IntReprType {
+        match &self.signal.raw_type {
+            RawType::Integer(repr) => *repr,
+            RawType::Float32 | RawType::Float64 => self.raw_int_repr_for_float(),
         }
+    }
+
+    fn raw_int_repr_for_float(&self) -> IntReprType {
+        let signed = matches!(
+            self.layout.value_type,
+            crate::ir::signal_layout::ValueType::Signed,
+        );
+        IntReprType::from_size_sign(self.layout.size, signed)
+    }
+
+    fn raw_type_is_signed(&self) -> bool {
+        matches!(
+            self.raw_int_repr_for_bit_io(),
+            IntReprType::I8 | IntReprType::I16 | IntReprType::I32 | IntReprType::I64,
+        )
     }
 
     fn is_enum(&self) -> bool {
@@ -779,20 +815,6 @@ impl<'a> SignalCtx<'a> {
 
     fn is_float(&self) -> bool {
         self.signal.physical_type.is_float()
-    }
-
-    fn unsigned_rust_type(&self) -> &str {
-        match self.signal.raw_type {
-            RawType::Integer(IntReprType::I8) => "u8",
-            RawType::Integer(IntReprType::I16) => "u16",
-            RawType::Integer(IntReprType::I32) => "u32",
-            RawType::Integer(IntReprType::I64) => "u64",
-            RawType::Integer(IntReprType::U8) => "u8",
-            RawType::Integer(IntReprType::U16) => "u16",
-            RawType::Integer(IntReprType::U32) => "u32",
-            RawType::Integer(IntReprType::U64) => "u64",
-            _ => panic!("only works on intergers"),
-        }
     }
 
     fn is_bool(&self) -> bool {
@@ -815,11 +837,6 @@ impl<'a> SignalCtx<'a> {
         } else {
             phys.literal(self.layout.offset as i64).to_token_stream()
         }
-    }
-
-    fn int_repr_for_float(&self) -> syn::Ident {
-        let ty = IntReprType::from_size_sign(self.layout.size, false);
-        format_ident!("{}", ty.as_rust_type())
     }
 
     fn f64_to_correct_literal_with_type(&self, value: f64) -> TokenStream {
@@ -910,19 +927,10 @@ impl<'a> SignalCtx<'a> {
         let (start, end) = self.start_end_bit();
         let order = self.bitvec_order();
         let load = self.load_fn();
+        let raw_ty = self.raw_rust_type();
 
-        if self.is_enum() {
-            let raw_ty = self.raw_rust_type();
-            quote! { let #raw = self.data.view_bits::<#order>()[#start..#end].#load::<#raw_ty>(); }
-        } else if !self.is_float() {
-            let ty = self.unsigned_rust_type();
-            let ty = format_ident!("{ty}");
-            quote! { let #raw = self.data.view_bits::<#order>()[#start..#end].#load::<#ty>(); }
-        } else {
-            // bitvec cannot read f32/f64 from bits. Code finds the best fitting unsigned type
-            // and reads data into the type. The data is later casted to the correct float type.
-            let int_ty = self.int_repr_for_float();
-            quote! { let #raw = self.data.view_bits::<#order>()[#start..#end].#load::<#int_ty>(); }
+        quote! {
+            let #raw = self.data.view_bits::<#order>()[#start..#end].#load::<#raw_ty>();
         }
     }
 
@@ -959,27 +967,30 @@ impl<'a> SignalCtx<'a> {
         let (start, end) = self.start_end_bit();
         let order = self.bitvec_order();
         let store = self.store_fn();
+        let raw_ty = self.raw_rust_type();
+        let storage_ty = self.storage_rust_type();
 
-        if self.is_enum() || self.is_bool() {
-            let ty = self.raw_rust_type();
-            quote! { self.data.view_bits_mut::<#order>()[#start..#end].#store(#ty::from(value)); }
-        } else if self.is_float() {
-            let factor = self.factor_literal();
-            let offset = self.offset_literal();
-            // bitvec does not work with floats. See comment in decode_read!
-            let int_ty = self.int_repr_for_float();
-            quote! {
-                self.data.view_bits_mut::<#order>()[#start..#end].#store(((value - (#offset)) / (#factor)) as #int_ty);
-            }
+        let raw_value_expr = if self.is_enum() {
+            quote! { #raw_ty::from(value) }
+        } else if self.is_bool() {
+            quote! { value as #raw_ty }
         } else {
             let factor = self.factor_literal();
             let offset = self.offset_literal();
-            let ty = self.unsigned_rust_type();
-            let ty = format_ident!("{ty}");
-            quote! {
-                self.data.view_bits_mut::<#order>()[#start..#end].#store(((value - (#offset)) / (#factor)) as #ty);
-            }
-        }
+            quote! { ((value - (#offset)) / (#factor)) as #raw_ty }
+        };
+
+        let storage_value = if self.raw_type_is_signed() {
+            quote! { #storage_ty::from_ne_bytes(raw_value.to_ne_bytes()) }
+        } else {
+            quote! { raw_value as #storage_ty }
+        };
+
+        quote! {
+            let raw_value = #raw_value_expr;
+            let storage_value = #storage_value;
+            self.data.view_bits_mut::<#order>()[#start..#end].#store(storage_value);
+         }
     }
 }
 
@@ -1233,6 +1244,8 @@ impl <'a> SignalCtx<'a> {
             let enum_name = self.enum_ident();
 
             if let Some(sve) = self.sve {
+
+                //TODO: use other enum values as well
                 if let Some(first_variant) = sve.variants.first() {
                     let variant = format_ident!("{}", first_variant.description);
 

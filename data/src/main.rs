@@ -1,9 +1,9 @@
 use data::*;
 
 fn main() -> Result<(), CanError> {
-    let msg = ExampleMessage::new(231.0, 3.0, true)?;
+    // let msg = MotorCmd::new(3, 3)?;
 
-    println!("{}", msg.temperature());
+    // println!("{}", msg.motor_cmd_steer());
 
     Ok(())
 }

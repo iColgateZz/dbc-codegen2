@@ -140,11 +140,13 @@ pub enum IntReprType {
     U16,
     U32,
     U64,
+    U128,
     I8,
     I16,
     I32,
-    #[default]
     I64,
+    #[default]
+    I128,
 }
 
 impl IntReprType {
@@ -153,22 +155,24 @@ impl IntReprType {
             (false, 0..=8) => IntReprType::U8,
             (false, 9..=16) => IntReprType::U16,
             (false, 17..=32) => IntReprType::U32,
-            (false, _) => IntReprType::U64,
+            (false, 33..=64) => IntReprType::U64,
+            (false, _) => IntReprType::U128,
 
             (true, 0..=8) => IntReprType::I8,
             (true, 9..=16) => IntReprType::I16,
             (true, 17..=32) => IntReprType::I32,
-            (true, _) => IntReprType::I64,
+            (true, 33..=64) => IntReprType::I64,
+            (true, _) => IntReprType::I128,
         }
     }
 
     pub fn min_value_i64(&self) -> i64 {
         match self {
-            Self::U8 | Self::U16 | Self::U32 | Self::U64 => 0,
+            Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::U128 => 0,
             Self::I8 => i8::MIN as i64,
             Self::I16 => i16::MIN as i64,
             Self::I32 => i32::MIN as i64,
-            Self::I64 => i64::MIN,
+            Self::I64 | Self::I128 => i64::MIN,
         }
     }
 
@@ -177,16 +181,19 @@ impl IntReprType {
             Self::U8 => u8::MAX as i64,
             Self::U16 => u16::MAX as i64,
             Self::U32 => u32::MAX as i64,
-            Self::U64 => i64::MAX,
+            Self::U64 | Self::U128 => i64::MAX,
             Self::I8 => i8::MAX as i64,
             Self::I16 => i16::MAX as i64,
             Self::I32 => i32::MAX as i64,
-            Self::I64 => i64::MAX,
+            Self::I64 | Self::I128 => i64::MAX,
         }
     }
 
     pub fn is_unsigned(&self) -> bool {
-        matches!(self, Self::U8 | Self::U16 | Self::U32 | Self::U64)
+        matches!(
+            self,
+            Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::U128
+        )
     }
 
     pub fn from_min_max(min: i128, max: i128) -> Self {
@@ -197,19 +204,51 @@ impl IntReprType {
                 IntReprType::I16
             } else if min >= i32::MIN as i128 && max <= i32::MAX as i128 {
                 IntReprType::I32
-            } else {
+            } else if min >= i64::MIN as i128 && max <= i64::MAX as i128 {
                 IntReprType::I64
-            }
-        } else {
-            if max <= u8::MAX as i128 {
-                IntReprType::U8
-            } else if max <= u16::MAX as i128 {
-                IntReprType::U16
-            } else if max <= u32::MAX as i128 {
-                IntReprType::U32
             } else {
-                IntReprType::U64
+                IntReprType::I128
             }
+        } else if max <= u8::MAX as i128 {
+            IntReprType::U8
+        } else if max <= u16::MAX as i128 {
+            IntReprType::U16
+        } else if max <= u32::MAX as i128 {
+            IntReprType::U32
+        } else if max <= u64::MAX as i128 {
+            IntReprType::U64
+        } else {
+            IntReprType::U128
+        }
+    }
+
+    pub fn unsigned(self) -> Self {
+        match self {
+            Self::U8 | Self::I8 => Self::U8,
+            Self::U16 | Self::I16 => Self::U16,
+            Self::U32 | Self::I32 => Self::U32,
+            Self::U64 | Self::I64 => Self::U64,
+            Self::U128 | Self::I128 => Self::U128,
+        }
+    }
+
+    pub fn signed(self) -> Self {
+        match self {
+            Self::U8 | Self::I8 => Self::I8,
+            Self::U16 | Self::I16 => Self::I16,
+            Self::U32 | Self::I32 => Self::I32,
+            Self::U64 | Self::I64 => Self::I64,
+            Self::U128 | Self::I128 => Self::I128,
+        }
+    }
+
+    pub fn bits(self) -> u32 {
+        match self {
+            Self::U8 | Self::I8 => 8,
+            Self::U16 | Self::I16 => 16,
+            Self::U32 | Self::I32 => 32,
+            Self::U64 | Self::I64 => 64,
+            Self::U128 | Self::I128 => 128,
         }
     }
 }
@@ -221,10 +260,12 @@ impl RustType for IntReprType {
             Self::U16 => "u16",
             Self::U32 => "u32",
             Self::U64 => "u64",
+            Self::U128 => "u128",
             Self::I8 => "i8",
             Self::I16 => "i16",
             Self::I32 => "i32",
             Self::I64 => "i64",
+            Self::I128 => "i128",
         }
     }
 }
@@ -236,10 +277,12 @@ impl CppType for IntReprType {
             Self::U16 => "uint16_t",
             Self::U32 => "uint32_t",
             Self::U64 => "uint64_t",
+            Self::U128 => "unsigned __int128",
             Self::I8 => "int8_t",
             Self::I16 => "int16_t",
             Self::I32 => "int32_t",
             Self::I64 => "int64_t",
+            Self::I128 => "__int128_t",
         }
     }
 }
@@ -251,10 +294,12 @@ impl RustIntegerLiteral for IntReprType {
             Self::U16 => Literal::u16_suffixed(value as u16),
             Self::U32 => Literal::u32_suffixed(value as u32),
             Self::U64 => Literal::u64_suffixed(value as u64),
+            Self::U128 => Literal::u128_suffixed(value as u128),
             Self::I8 => Literal::i8_suffixed(value as i8),
             Self::I16 => Literal::i16_suffixed(value as i16),
             Self::I32 => Literal::i32_suffixed(value as i32),
             Self::I64 => Literal::i64_suffixed(value),
+            Self::I128 => Literal::i128_suffixed(value as i128),
         }
     }
 }
