@@ -36,33 +36,33 @@ BU_: DBG DRIVER IO MOTOR SENSOR
 
 
 BO_ 100 DRIVER_HEARTBEAT: 1 DRIVER
- SG_ DRIVER_HEARTBEAT_cmd : 0|8@1+ (1,0) [0|0] "" SENSOR,MOTOR
+ SG_ DRIVER_HEARTBEAT_cmd : 0|8@1+ (1,0) [0|255] "" SENSOR,MOTOR
 
 BO_ 500 IO_DEBUG: 4 IO
- SG_ IO_DEBUG_test_unsigned : 0|8@1+ (1,0) [0|0] "" DBG
- SG_ IO_DEBUG_test_enum : 8|8@1+ (1,0) [0|0] "" DBG
- SG_ IO_DEBUG_test_signed : 16|8@1- (1,0) [0|0] "" DBG
- SG_ IO_DEBUG_test_float : 24|8@1+ (0.5,0) [0|0] "" DBG
+ SG_ IO_DEBUG_test_unsigned : 0|8@1+ (1,0) [0|255] "" DBG
+ SG_ IO_DEBUG_test_enum : 8|8@1+ (1,0) [0|255] "" DBG
+ SG_ IO_DEBUG_test_signed : 16|8@1- (1,0) [-128|127] "" DBG
+ SG_ IO_DEBUG_test_float : 24|8@1+ (0.5,0) [0|127.5] "" DBG
 
 BO_ 101 MOTOR_CMD: 1 DRIVER
- SG_ MOTOR_CMD_steer : 0|4@1- (1,-5) [-5|5] "" MOTOR
+ SG_ MOTOR_CMD_steer : 0|4@1+ (1,-5) [-5|5] "" MOTOR
  SG_ MOTOR_CMD_drive : 4|4@1+ (1,0) [0|9] "" MOTOR
 
 BO_ 400 MOTOR_STATUS: 3 MOTOR
- SG_ MOTOR_STATUS_wheel_error : 0|1@1+ (1,0) [0|0] "" DRIVER,IO
- SG_ MOTOR_STATUS_speed_kph : 8|16@1+ (0.001,0) [0|0] "kph" DRIVER,IO
+ SG_ MOTOR_STATUS_wheel_error : 0|1@1+ (1,0) [0|1] "" DRIVER,IO
+ SG_ MOTOR_STATUS_speed_kph : 8|16@1+ (0.001,0) [0|65] "kph" DRIVER,IO
 
 BO_ 200 SENSOR_SONARS: 8 SENSOR
- SG_ SENSOR_SONARS_mux M : 0|4@1+ (1,0) [0|0] "" DRIVER,IO
- SG_ SENSOR_SONARS_err_count : 4|12@1+ (1,0) [0|0] "" DRIVER,IO
- SG_ SENSOR_SONARS_left m0 : 16|12@1+ (0.1,0) [0|0] "" DRIVER,IO
- SG_ SENSOR_SONARS_middle m0 : 28|12@1+ (0.1,0) [0|0] "" DRIVER,IO
- SG_ SENSOR_SONARS_right m0 : 40|12@1+ (0.1,0) [0|0] "" DRIVER,IO
- SG_ SENSOR_SONARS_rear m0 : 52|12@1+ (0.1,0) [0|0] "" DRIVER,IO
- SG_ SENSOR_SONARS_no_filt_left m1 : 16|12@1+ (0.1,0) [0|0] "" DBG
- SG_ SENSOR_SONARS_no_filt_middle m1 : 28|12@1+ (0.1,0) [0|0] "" DBG
- SG_ SENSOR_SONARS_no_filt_right m1 : 40|12@1+ (0.1,0) [0|0] "" DBG
- SG_ SENSOR_SONARS_no_filt_rear m1 : 52|12@1+ (0.1,0) [0|0] "" DBG
+ SG_ SENSOR_SONARS_mux M : 0|4@1+ (1,0) [0|15] "" DRIVER,IO
+ SG_ SENSOR_SONARS_err_count : 4|12@1+ (1,0) [0|4095] "" DRIVER,IO
+ SG_ SENSOR_SONARS_left m0 : 16|12@1+ (0.1,0) [0|409.5] "" DRIVER,IO
+ SG_ SENSOR_SONARS_middle m0 : 28|12@1+ (0.1,0) [0|409.5] "" DRIVER,IO
+ SG_ SENSOR_SONARS_right m0 : 40|12@1+ (0.1,0) [0|409.5] "" DRIVER,IO
+ SG_ SENSOR_SONARS_rear m0 : 52|12@1+ (0.1,0) [0|409.5] "" DRIVER,IO
+ SG_ SENSOR_SONARS_no_filt_left m1 : 16|12@1+ (0.1,0) [0|409.5] "" DBG
+ SG_ SENSOR_SONARS_no_filt_middle m1 : 28|12@1+ (0.1,0) [0|409.5] "" DBG
+ SG_ SENSOR_SONARS_no_filt_right m1 : 40|12@1+ (0.1,0) [0|409.5] "" DBG
+ SG_ SENSOR_SONARS_no_filt_rear m1 : 52|12@1+ (0.1,0) [0|409.5] "" DBG
 
 
 
