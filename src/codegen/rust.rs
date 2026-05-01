@@ -41,7 +41,6 @@ impl RustGen {
         let imports = quote! {
             use embedded_can::{Frame, Id, StandardId, ExtendedId};
             use bitvec::prelude::*;
-            use core::ops::BitOr;
             use core::convert::TryFrom;
         };
 
@@ -420,24 +419,30 @@ impl MessageDef<'_> {
             }
         };
 
-        let mux_setters = muxed.keys().map(|idx| {
+        let mux_setters = muxed.iter().map(|(idx, sigs)| {
             let fn_name = format_ident!("set_mux{}", idx);
             let struct_name = format_ident!("{}Mux{}", name, idx);
 
-            let (start, end) = mux_signal.start_end_bit();
-            let order = mux_signal.bitvec_order();
-            let store = mux_signal.store_fn();
+            let (mux_start, mux_end) = mux_signal.start_end_bit();
+            let mux_order = mux_signal.bitvec_order();
+            let mux_store = mux_signal.store_fn();
 
-            //TODO: bitor seems like a hack. Come up with more robust version
+            let copy_muxed_bits = sigs.iter().map(|sig| {
+                let (start, end) = sig.start_end_bit();
+                let order = sig.bitvec_order();
+
+                quote! {
+                    self.data.view_bits_mut::<#order>()[#start..#end]
+                        .copy_from_bitslice(&value.data.view_bits::<#order>()[#start..#end]);
+                }
+            });
+
             quote! {
                 pub fn #fn_name(&mut self, value: #struct_name) -> Result<(), CanError> {
-                    let b0 = BitArray::<_, LocalBits>::new(self.data);
-                    let b1 = BitArray::<_, LocalBits>::new(value.data);
+                    #( #copy_muxed_bits )*
 
-                    self.data = b0.bitor(b1).into_inner();
-
-                    self.data.view_bits_mut::<#order>()[#start..#end]
-                        .#store(#idx);
+                    self.data.view_bits_mut::<#mux_order>()[#mux_start..#mux_end]
+                        .#mux_store(#idx);
 
                     Ok(())
                 }

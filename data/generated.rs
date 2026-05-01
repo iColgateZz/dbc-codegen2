@@ -1,6 +1,5 @@
 use embedded_can::{Frame, Id, StandardId, ExtendedId};
 use bitvec::prelude::*;
-use core::ops::BitOr;
 use core::convert::TryFrom;
 #[derive(Debug, Clone)]
 pub enum CanError {
@@ -859,16 +858,34 @@ impl SensorSonarsMsg {
         }
     }
     pub fn set_mux0(&mut self, value: SensorSonarsMsgMux0) -> Result<(), CanError> {
-        let b0 = BitArray::<_, LocalBits>::new(self.data);
-        let b1 = BitArray::<_, LocalBits>::new(value.data);
-        self.data = b0.bitor(b1).into_inner();
+        self.data
+            .view_bits_mut::<Lsb0>()[16usize..28usize]
+            .copy_from_bitslice(&value.data.view_bits::<Lsb0>()[16usize..28usize]);
+        self.data
+            .view_bits_mut::<Lsb0>()[28usize..40usize]
+            .copy_from_bitslice(&value.data.view_bits::<Lsb0>()[28usize..40usize]);
+        self.data
+            .view_bits_mut::<Lsb0>()[40usize..52usize]
+            .copy_from_bitslice(&value.data.view_bits::<Lsb0>()[40usize..52usize]);
+        self.data
+            .view_bits_mut::<Lsb0>()[52usize..64usize]
+            .copy_from_bitslice(&value.data.view_bits::<Lsb0>()[52usize..64usize]);
         self.data.view_bits_mut::<Lsb0>()[0usize..4usize].store_le(0u64);
         Ok(())
     }
     pub fn set_mux1(&mut self, value: SensorSonarsMsgMux1) -> Result<(), CanError> {
-        let b0 = BitArray::<_, LocalBits>::new(self.data);
-        let b1 = BitArray::<_, LocalBits>::new(value.data);
-        self.data = b0.bitor(b1).into_inner();
+        self.data
+            .view_bits_mut::<Lsb0>()[16usize..28usize]
+            .copy_from_bitslice(&value.data.view_bits::<Lsb0>()[16usize..28usize]);
+        self.data
+            .view_bits_mut::<Lsb0>()[28usize..40usize]
+            .copy_from_bitslice(&value.data.view_bits::<Lsb0>()[28usize..40usize]);
+        self.data
+            .view_bits_mut::<Lsb0>()[40usize..52usize]
+            .copy_from_bitslice(&value.data.view_bits::<Lsb0>()[40usize..52usize]);
+        self.data
+            .view_bits_mut::<Lsb0>()[52usize..64usize]
+            .copy_from_bitslice(&value.data.view_bits::<Lsb0>()[52usize..64usize]);
         self.data.view_bits_mut::<Lsb0>()[0usize..4usize].store_le(1u64);
         Ok(())
     }

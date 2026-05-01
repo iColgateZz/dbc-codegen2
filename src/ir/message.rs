@@ -13,6 +13,7 @@ pub struct Message {
     pub signal_idxs: Vec<SignalIdx>,
     pub layout: MessageLayoutIdx,
     pub comment: Option<String>,
+    pub signal_usage: Option<MessageSignalUsage>,
 }
 
 impl Message {
@@ -32,7 +33,8 @@ impl Message {
             transmitter: Transmitter::from(transmitter),
             signal_idxs: signals,
             layout: layout,
-            comment
+            comment,
+            signal_usage: None,
         }
     }
 
@@ -108,4 +110,39 @@ pub enum MessageSignalClassification {
         mux_signal: SignalIdx,
         muxed: BTreeMap<u64, Vec<SignalIdx>>,
     },
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct MessageSignalUsage {
+    pub cases: Vec<MessageSignalUsageCase>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MessageSignalUsageCase {
+    pub context: Option<String>,
+    pub spans: Vec<MessageSignalBitSpan>,
+    pub used_bits_sum: u64,
+    pub overlaps: Vec<MessageSignalOverlap>,
+    pub unused_bits: Vec<MessageSignalBitRange>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MessageSignalBitSpan {
+    pub signal_idx: SignalIdx,
+    pub signal_name: String,
+    pub start: usize,
+    pub end: usize,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct MessageSignalOverlap {
+    pub first: MessageSignalBitSpan,
+    pub second: MessageSignalBitSpan,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MessageSignalBitRange {
+    pub start: usize,
+    pub end: usize,
 }

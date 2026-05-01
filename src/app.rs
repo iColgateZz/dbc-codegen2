@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::codegen;
 use crate::codegen::config::CodegenConfig;
-use crate::middle_end::nodes::{AttachSignalValueEnumType, CheckEnumVariants, CheckMessageSignalUsage, CheckSignalLayoutValidity, CheckSignalScalingArithmeticSafety, CheckSignalPhysicalRangeRepresentable, CheckUniqueMessageIds, CheckUnsupportedMultiplexing, CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics, InferSignalTypes, PrefixSignalValueEnumName, SanitizeMessageNames, SanitizeSVENames, SanitizeSignalNames};
+use crate::middle_end::nodes::{AttachMessageSignalUsage, AttachSignalValueEnumType, CheckEnumVariants, CheckMessageSignalUsage, CheckSignalLayoutValidity, CheckSignalScalingArithmeticSafety, CheckSignalPhysicalRangeRepresentable, CheckUniqueMessageIds, CheckUnsupportedMultiplexing, CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics, InferSignalTypes, PrefixSignalValueEnumName, SanitizeMessageNames, SanitizeSVENames, SanitizeSignalNames};
 use crate::middle_end::pipeline::check_pipeline::CheckPipeline;
 use crate::utils::Language;
 use crate::{
@@ -38,6 +38,7 @@ impl App {
 
         TransformationPipeline::new()
             .add(ComputeBitvecPositions)
+            .add(AttachMessageSignalUsage)
             .add(InferSignalTypes)
             .run(&mut dbc);
 
