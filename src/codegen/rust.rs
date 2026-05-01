@@ -1132,26 +1132,47 @@ struct RustTestModule<'a> {
 
 impl ToTokens for RustTestModule<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let tests = self.file.messages.iter().filter_map(|msg| {
+        let tests = self.file.messages.iter().map(|msg| {
             let signals: Vec<SignalCtx> = msg
                 .signal_idxs
                 .iter()
                 .map(|idx| SignalCtx::new(&self.file.signals[idx.0], self.file, self.config))
                 .collect();
 
-            let has_mux = signals.iter().any(|s| {
-                !matches!(s.signal.multiplexer, MultiplexIndicator::Plain)
-            });
+            let mut plain = Vec::new();
+            let mut muxed: BTreeMap<u64, Vec<SignalCtx>> = BTreeMap::new();
+            let mut mux_signal = None;
 
-            if has_mux {
-                return None;
+            for signal in signals {
+                match signal.signal.multiplexer {
+                    MultiplexIndicator::Plain => plain.push(signal),
+                    MultiplexIndicator::Multiplexor => mux_signal = Some(signal),
+                    MultiplexIndicator::MultiplexedSignal(v) => {
+                        muxed.entry(v).or_default().push(signal);
+                    }
+                    MultiplexIndicator::MultiplexorAndMultiplexedSignal(_) => {}
+                }
             }
 
-            Some(PlainMessageTest {
-                msg,
-                signals,
-                config: self.config,
-            })
+            if muxed.is_empty() {
+                if let Some(mux_signal) = mux_signal {
+                    plain.push(mux_signal);
+                }
+
+                PlainMessageTest {
+                    msg,
+                    signals: plain,
+                    config: self.config,
+                }
+                .to_token_stream()
+            } else {
+                MultiplexedMessageTest {
+                    msg,
+                    plain,
+                    muxed,
+                }
+                .to_token_stream()
+            }
         });
 
         quote! {
@@ -1254,6 +1275,156 @@ impl ToTokens for PlainMessageTest<'_> {
     }
 }
 
+
+struct MultiplexedMessageTest<'a> {
+    msg: &'a Message,
+    plain: Vec<SignalCtx<'a>>,
+    muxed: BTreeMap<u64, Vec<SignalCtx<'a>>>,
+}
+
+impl ToTokens for MultiplexedMessageTest<'_> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let msg_name = format_ident!("{}", self.msg.name.upper_camel());
+        let mux_enum_name = format_ident!("{}Mux", msg_name);
+        let test_name = format_ident!("test_{}", self.msg.name.snake_case());
+
+        let plain_first_values: Vec<_> = self.plain.iter().map(|s| {
+            let var = format_ident!("{}_value", s.signal.name.snake_case());
+            s.test_value_statement(&var, format_ident!("u"))
+        }).collect();
+
+        let plain_second_values: Vec<_> = self.plain.iter().map(|s| {
+            let var = format_ident!("{}_next_value", s.signal.name.snake_case());
+            s.test_value_statement(&var, format_ident!("u"))
+        }).collect();
+
+        let plain_constructor_args: Vec<_> = self.plain.iter().map(|s| {
+            format_ident!("{}_value", s.signal.name.snake_case())
+        }).collect();
+
+        let plain_first_getter_assertions: Vec<_> = self.plain.iter().map(|s| {
+            let expected = format_ident!("{}_value", s.signal.name.snake_case());
+            s.test_getter_assertion(&expected)
+        }).collect();
+
+        let plain_setter_calls: Vec<_> = self.plain.iter().map(|s| {
+            let setter = s.setter_ident();
+            let value = format_ident!("{}_next_value", s.signal.name.snake_case());
+
+            quote! {
+                msg.#setter(#value).expect("plain setter should accept generated test value");
+            }
+        }).collect();
+
+        let plain_second_getter_assertions: Vec<_> = self.plain.iter().map(|s| {
+            let expected = format_ident!("{}_next_value", s.signal.name.snake_case());
+            s.test_getter_assertion(&expected)
+        }).collect();
+
+        let variant_tests = self.muxed.iter().map(|(idx, sigs)| {
+            let variant = format_ident!("V{}", idx);
+            let variant_struct_name = format_ident!("{}Mux{}", msg_name, idx);
+            let mux_setter = format_ident!("set_mux{}", idx);
+
+            let first_values = sigs.iter().map(|s| {
+                let var = format_ident!("{}_value", s.signal.name.snake_case());
+                s.test_value_statement(&var, format_ident!("u"))
+            });
+
+            let second_values = sigs.iter().map(|s| {
+                let var = format_ident!("{}_next_value", s.signal.name.snake_case());
+                s.test_value_statement(&var, format_ident!("u"))
+            });
+
+            let constructor_args = sigs.iter().map(|s| {
+                format_ident!("{}_value", s.signal.name.snake_case())
+            });
+
+            let first_getter_assertions = sigs.iter().map(|s| {
+                let expected = format_ident!("{}_value", s.signal.name.snake_case());
+                s.test_getter_assertion_on(&format_ident!("mux_msg"), &expected)
+            });
+
+            let setter_calls = sigs.iter().map(|s| {
+                let setter = s.setter_ident();
+                let value = format_ident!("{}_next_value", s.signal.name.snake_case());
+
+                quote! {
+                    mux_msg.#setter(#value)
+                        .expect("mux variant setter should accept generated test value");
+                }
+            });
+
+            let second_getter_assertions = sigs.iter().map(|s| {
+                let expected = format_ident!("{}_next_value", s.signal.name.snake_case());
+                s.test_getter_assertion_on(&format_ident!("mux_msg"), &expected)
+            });
+
+            let remux_getter_assertions = sigs.iter().map(|s| {
+                let expected = format_ident!("{}_next_value", s.signal.name.snake_case());
+                s.test_getter_assertion_on(&format_ident!("mux_msg"), &expected)
+            });
+
+            quote! {
+                {
+                    #( #first_values )*
+
+                    let mux_msg = #variant_struct_name::new(
+                        #( #constructor_args ),*
+                    ).expect("mux variant constructor should accept generated test values");
+
+                    let mut msg = #msg_name::new(
+                        #( #plain_constructor_args, )*
+                        #mux_enum_name::#variant(mux_msg)
+                    ).expect("constructor should accept generated test values");
+
+                    #( #plain_first_getter_assertions )*
+
+                    let mut mux_msg = match msg.mux().expect("mux getter should decode generated mux value") {
+                        #mux_enum_name::#variant(v) => v,
+                        _ => panic!("mux getter returned wrong variant"),
+                    };
+
+                    #( #first_getter_assertions )*
+
+                    #( #plain_second_values )*
+                    #( #plain_setter_calls )*
+                    #( #plain_second_getter_assertions )*
+
+                    #( #second_values )*
+                    #( #setter_calls )*
+                    #( #second_getter_assertions )*
+
+                    msg.#mux_setter(mux_msg)
+                        .expect("mux setter should accept generated mux variant");
+
+                    let mux_msg = match msg.mux().expect("mux getter should decode updated mux value") {
+                        #mux_enum_name::#variant(v) => v,
+                        _ => panic!("mux getter returned wrong variant after update"),
+                    };
+
+                    #( #remux_getter_assertions )*
+                }
+            }
+        });
+
+        quote! {
+            #[test]
+            fn #test_name(){
+                for seed in SEEDS {
+                    let mut u = Unstructured::new(seed);
+
+                    #( #plain_first_values )*
+
+                    #( #variant_tests )*
+                }
+            }
+        }
+        .to_tokens(tokens);
+    }
+}
+
+
 impl <'a> SignalCtx<'a> {
     fn test_value_statement(&self, var: &Ident, arbitrary: Ident) -> TokenStream {
         if self.is_enum() {
@@ -1324,18 +1495,22 @@ impl <'a> SignalCtx<'a> {
     }
 
     fn test_getter_assertion(&self, expected: &Ident) -> TokenStream {
+        self.test_getter_assertion_on(&format_ident!("msg"), expected)
+    }
+
+    fn test_getter_assertion_on(&self, receiver: &Ident, expected: &Ident) -> TokenStream {
         let getter = self.field_ident();
 
         if self.is_enum() && self.config.no_enum_other {
             quote! {
                 assert_eq!(
-                    msg.#getter().expect("enum getter should decode generated enum value"),
+                    #receiver.#getter().expect("enum getter should decode generated enum value"),
                     #expected
                 );
             }
         } else if self.is_float() {
             quote! {
-                let actual = msg.#getter();
+                let actual = #receiver.#getter();
                 let expected = #expected;
                 let tolerance = (expected.abs() * 0.0001).max(0.0001);
                 assert!(
@@ -1349,7 +1524,7 @@ impl <'a> SignalCtx<'a> {
         } else {
             quote! {
                 assert_eq!(
-                    msg.#getter(),
+                    #receiver.#getter(),
                     #expected,
                     "getter `{}` returned unexpected value",
                     stringify!(#getter),
