@@ -8,6 +8,8 @@
 #include <variant>
 #include <utility>
 #include <cstring>
+#include <limits>
+#include <type_traits>
 
 enum class CanError : uint8_t {
   UnknownFrameId,
@@ -44,6 +46,58 @@ concept GeneratedCanMessage = requires(CanId id, std::span<const uint8_t> frame,
 };
 
 namespace detail {
+
+template <typename T>
+[[nodiscard]] constexpr T saturating_add(T lhs, T rhs) noexcept {
+  static_assert(std::is_integral_v<T>);
+  T result{};
+  if (!__builtin_add_overflow(lhs, rhs, &result)) {
+    return result;
+  };
+  if constexpr (std::is_unsigned_v<T>) {
+    return std::numeric_limits<T>::max();
+  };
+  return rhs < 0 ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
+};
+
+template <typename T>
+[[nodiscard]] constexpr T saturating_mul(T lhs, T rhs) noexcept {
+  static_assert(std::is_integral_v<T>);
+  T result{};
+  if (!__builtin_mul_overflow(lhs, rhs, &result)) {
+    return result;
+  };
+  if constexpr (std::is_unsigned_v<T>) {
+    return std::numeric_limits<T>::max();
+  };
+  return (lhs < 0) == (rhs < 0) ? std::numeric_limits<T>::max() : std::numeric_limits<T>::min();
+};
+
+template <typename T>
+[[nodiscard]] constexpr std::expected<T, CanError>
+checked_sub(T lhs, T rhs) noexcept {
+  static_assert(std::is_integral_v<T>);
+  T result{};
+  if (__builtin_sub_overflow(lhs, rhs, &result)) {
+    return std::unexpected(CanError::ValueOutOfRange);
+  };
+  return result;
+};
+
+template <typename T>
+[[nodiscard]] constexpr std::expected<T, CanError>
+checked_div(T lhs, T rhs) noexcept {
+  static_assert(std::is_integral_v<T>);
+  if (rhs == 0) {
+    return std::unexpected(CanError::ValueOutOfRange);
+  };
+  if constexpr (std::is_signed_v<T>) {
+    if (lhs == std::numeric_limits<T>::min() && rhs == static_cast<T>(-1)) {
+      return std::unexpected(CanError::ValueOutOfRange);
+    };
+  };
+  return lhs / rhs;
+};
 
 template <typename T>
 [[nodiscard]] constexpr T extract_le(const uint8_t* data, std::size_t start, std::size_t end) noexcept {
@@ -261,7 +315,7 @@ class IoDebugMsg {
    */
   [[nodiscard]] uint8_t io_debug_test_unsigned() const noexcept {
     const uint8_t raw_io_debug_test_unsigned = detail::extract_le<uint8_t>(data_.data(), 0, 8);
-    return static_cast<uint8_t>(raw_io_debug_test_unsigned) * 1 + 0;
+    return detail::saturating_add<uint8_t>(detail::saturating_mul<uint8_t>(static_cast<uint8_t>(raw_io_debug_test_unsigned), static_cast<uint8_t>(1)), static_cast<uint8_t>(0));
   };
   
   /**
@@ -297,7 +351,7 @@ class IoDebugMsg {
    */
   [[nodiscard]] int8_t io_debug_test_signed() const noexcept {
     const int8_t raw_io_debug_test_signed = detail::extract_le<int8_t>(data_.data(), 16, 24);
-    return static_cast<int8_t>(raw_io_debug_test_signed) * 1 + 0;
+    return detail::saturating_add<int8_t>(detail::saturating_mul<int8_t>(static_cast<int8_t>(raw_io_debug_test_signed), static_cast<int8_t>(1)), static_cast<int8_t>(0));
   };
   
   /**
@@ -320,7 +374,11 @@ class IoDebugMsg {
   
   std::expected<void, CanError> set_io_debug_test_unsigned(uint8_t io_debug_test_unsigned) noexcept {
     if (io_debug_test_unsigned < 0 || io_debug_test_unsigned > 255) return std::unexpected(CanError::ValueOutOfRange);
-    detail::insert_le<uint8_t>(data_.data(), 0, 8, static_cast<uint8_t>((io_debug_test_unsigned - 0) / 1));
+    const auto io_debug_test_unsigned_shifted = detail::checked_sub<uint8_t>(io_debug_test_unsigned, static_cast<uint8_t>(0));
+    if (!io_debug_test_unsigned_shifted) return std::unexpected(io_debug_test_unsigned_shifted.error());
+    const auto io_debug_test_unsigned_raw = detail::checked_div<uint8_t>(*io_debug_test_unsigned_shifted, static_cast<uint8_t>(1));
+    if (!io_debug_test_unsigned_raw) return std::unexpected(io_debug_test_unsigned_raw.error());
+    detail::insert_le<uint8_t>(data_.data(), 0, 8, static_cast<uint8_t>(*io_debug_test_unsigned_raw));
     return {};
   };
   
@@ -331,7 +389,11 @@ class IoDebugMsg {
   
   std::expected<void, CanError> set_io_debug_test_signed(int8_t io_debug_test_signed) noexcept {
     if (io_debug_test_signed < -128 || io_debug_test_signed > 127) return std::unexpected(CanError::ValueOutOfRange);
-    detail::insert_le<int8_t>(data_.data(), 16, 24, static_cast<int8_t>((io_debug_test_signed - 0) / 1));
+    const auto io_debug_test_signed_shifted = detail::checked_sub<int8_t>(io_debug_test_signed, static_cast<int8_t>(0));
+    if (!io_debug_test_signed_shifted) return std::unexpected(io_debug_test_signed_shifted.error());
+    const auto io_debug_test_signed_raw = detail::checked_div<int8_t>(*io_debug_test_signed_shifted, static_cast<int8_t>(1));
+    if (!io_debug_test_signed_raw) return std::unexpected(io_debug_test_signed_raw.error());
+    detail::insert_le<int8_t>(data_.data(), 16, 24, static_cast<int8_t>(*io_debug_test_signed_raw));
     return {};
   };
   
@@ -392,7 +454,7 @@ class MotorCmdMsg {
    */
   [[nodiscard]] int8_t motor_cmd_steer() const noexcept {
     const uint8_t raw_motor_cmd_steer = detail::extract_le<uint8_t>(data_.data(), 0, 4);
-    return static_cast<int8_t>(raw_motor_cmd_steer) * 1 + -5;
+    return detail::saturating_add<int8_t>(detail::saturating_mul<int8_t>(static_cast<int8_t>(raw_motor_cmd_steer), static_cast<int8_t>(1)), static_cast<int8_t>(-5));
   };
   
   /**
@@ -410,18 +472,26 @@ class MotorCmdMsg {
    */
   [[nodiscard]] uint8_t motor_cmd_drive() const noexcept {
     const uint8_t raw_motor_cmd_drive = detail::extract_le<uint8_t>(data_.data(), 4, 8);
-    return static_cast<uint8_t>(raw_motor_cmd_drive) * 1 + 0;
+    return detail::saturating_add<uint8_t>(detail::saturating_mul<uint8_t>(static_cast<uint8_t>(raw_motor_cmd_drive), static_cast<uint8_t>(1)), static_cast<uint8_t>(0));
   };
   
   std::expected<void, CanError> set_motor_cmd_steer(int8_t motor_cmd_steer) noexcept {
     if (motor_cmd_steer < -5 || motor_cmd_steer > 5) return std::unexpected(CanError::ValueOutOfRange);
-    detail::insert_le<uint8_t>(data_.data(), 0, 4, static_cast<uint8_t>((motor_cmd_steer - -5) / 1));
+    const auto motor_cmd_steer_shifted = detail::checked_sub<int8_t>(motor_cmd_steer, static_cast<int8_t>(-5));
+    if (!motor_cmd_steer_shifted) return std::unexpected(motor_cmd_steer_shifted.error());
+    const auto motor_cmd_steer_raw = detail::checked_div<int8_t>(*motor_cmd_steer_shifted, static_cast<int8_t>(1));
+    if (!motor_cmd_steer_raw) return std::unexpected(motor_cmd_steer_raw.error());
+    detail::insert_le<uint8_t>(data_.data(), 0, 4, static_cast<uint8_t>(*motor_cmd_steer_raw));
     return {};
   };
   
   std::expected<void, CanError> set_motor_cmd_drive(uint8_t motor_cmd_drive) noexcept {
     if (motor_cmd_drive < 0 || motor_cmd_drive > 9) return std::unexpected(CanError::ValueOutOfRange);
-    detail::insert_le<uint8_t>(data_.data(), 4, 8, static_cast<uint8_t>((motor_cmd_drive - 0) / 1));
+    const auto motor_cmd_drive_shifted = detail::checked_sub<uint8_t>(motor_cmd_drive, static_cast<uint8_t>(0));
+    if (!motor_cmd_drive_shifted) return std::unexpected(motor_cmd_drive_shifted.error());
+    const auto motor_cmd_drive_raw = detail::checked_div<uint8_t>(*motor_cmd_drive_shifted, static_cast<uint8_t>(1));
+    if (!motor_cmd_drive_raw) return std::unexpected(motor_cmd_drive_raw.error());
+    detail::insert_le<uint8_t>(data_.data(), 4, 8, static_cast<uint8_t>(*motor_cmd_drive_raw));
     return {};
   };
   
@@ -809,12 +879,16 @@ class SensorSonarsMsg {
    */
   [[nodiscard]] uint16_t sensor_sonars_err_count() const noexcept {
     const uint16_t raw_sensor_sonars_err_count = detail::extract_le<uint16_t>(data_.data(), 4, 16);
-    return static_cast<uint16_t>(raw_sensor_sonars_err_count) * 1 + 0;
+    return detail::saturating_add<uint16_t>(detail::saturating_mul<uint16_t>(static_cast<uint16_t>(raw_sensor_sonars_err_count), static_cast<uint16_t>(1)), static_cast<uint16_t>(0));
   };
   
   std::expected<void, CanError> set_sensor_sonars_err_count(uint16_t sensor_sonars_err_count) noexcept {
     if (sensor_sonars_err_count < 0 || sensor_sonars_err_count > 4095) return std::unexpected(CanError::ValueOutOfRange);
-    detail::insert_le<uint16_t>(data_.data(), 4, 16, static_cast<uint16_t>((sensor_sonars_err_count - 0) / 1));
+    const auto sensor_sonars_err_count_shifted = detail::checked_sub<uint16_t>(sensor_sonars_err_count, static_cast<uint16_t>(0));
+    if (!sensor_sonars_err_count_shifted) return std::unexpected(sensor_sonars_err_count_shifted.error());
+    const auto sensor_sonars_err_count_raw = detail::checked_div<uint16_t>(*sensor_sonars_err_count_shifted, static_cast<uint16_t>(1));
+    if (!sensor_sonars_err_count_raw) return std::unexpected(sensor_sonars_err_count_raw.error());
+    detail::insert_le<uint16_t>(data_.data(), 4, 16, static_cast<uint16_t>(*sensor_sonars_err_count_raw));
     return {};
   };
   

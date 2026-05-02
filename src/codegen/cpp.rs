@@ -279,7 +279,16 @@ impl CppGen {
 
     fn includes(out: &mut Generator) {
         const INCLUDES: &[&str] = &[
-            "array", "cstddef", "cstdint", "expected", "span", "variant", "utility", "cstring",
+            "array",
+            "cstddef",
+            "cstdint",
+            "expected",
+            "span",
+            "variant",
+            "utility",
+            "cstring",
+            "limits",
+            "type_traits",
         ];
 
         for include in INCLUDES {
@@ -522,6 +531,7 @@ impl CppGen {
         line!(out, "namespace detail {{");
         empty!(out);
 
+        Self::checked_int_math_fns(out);
         Self::extract_le_fn(out);
         Self::extract_be_fn(out);
         Self::insert_le_fn(out);
@@ -530,6 +540,68 @@ impl CppGen {
         Self::copy_be_fn(out);
 
         line!(out, "}} // namespace detail");
+        empty!(out);
+    }
+
+    fn checked_int_math_fns(out: &mut Generator) {
+        line!(out, "template <typename T>");
+        start_block!(
+            out,
+            "[[nodiscard]] constexpr T saturating_add(T lhs, T rhs) noexcept"
+        );
+        line!(out, "static_assert(std::is_integral_v<T>);");
+        line!(out, "T result{{}};");
+        start_block!(out, "if (!__builtin_add_overflow(lhs, rhs, &result))");
+        end_block!(out, "return result;");
+        start_block!(out, "if constexpr (std::is_unsigned_v<T>)");
+        end_block!(out, "return std::numeric_limits<T>::max();");
+        end_block!(
+            out,
+            "return rhs < 0 ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();"
+        );
+        empty!(out);
+
+        line!(out, "template <typename T>");
+        start_block!(
+            out,
+            "[[nodiscard]] constexpr T saturating_mul(T lhs, T rhs) noexcept"
+        );
+        line!(out, "static_assert(std::is_integral_v<T>);");
+        line!(out, "T result{{}};");
+        start_block!(out, "if (!__builtin_mul_overflow(lhs, rhs, &result))");
+        end_block!(out, "return result;");
+        start_block!(out, "if constexpr (std::is_unsigned_v<T>)");
+        end_block!(out, "return std::numeric_limits<T>::max();");
+        end_block!(
+            out,
+            "return (lhs < 0) == (rhs < 0) ? std::numeric_limits<T>::max() : std::numeric_limits<T>::min();"
+        );
+        empty!(out);
+
+        line!(out, "template <typename T>");
+        line!(out, "[[nodiscard]] constexpr std::expected<T, CanError>");
+        start_block!(out, "checked_sub(T lhs, T rhs) noexcept");
+        line!(out, "static_assert(std::is_integral_v<T>);");
+        line!(out, "T result{{}};");
+        start_block!(out, "if (__builtin_sub_overflow(lhs, rhs, &result))");
+        end_block!(out, "return std::unexpected(CanError::ValueOutOfRange);");
+        end_block!(out, "return result;");
+        empty!(out);
+
+        line!(out, "template <typename T>");
+        line!(out, "[[nodiscard]] constexpr std::expected<T, CanError>");
+        start_block!(out, "checked_div(T lhs, T rhs) noexcept");
+        line!(out, "static_assert(std::is_integral_v<T>);");
+        start_block!(out, "if (rhs == 0)");
+        end_block!(out, "return std::unexpected(CanError::ValueOutOfRange);");
+        start_block!(out, "if constexpr (std::is_signed_v<T>)");
+        start_block!(
+            out,
+            "if (lhs == std::numeric_limits<T>::min() && rhs == static_cast<T>(-1))"
+        );
+        end_block!(out, "return std::unexpected(CanError::ValueOutOfRange);");
+        end_block!(out, "");
+        end_block!(out, "return lhs / rhs;");
         empty!(out);
     }
 
@@ -772,10 +844,14 @@ impl CppGen {
                 Self::emit_detail_extract(out, raw_type, &raw_name, extract_fn, data_expr, layout);
                 line!(
                     out,
-                    "return static_cast<{}>({}) * {} + {};",
+                    "return detail::saturating_add<{}>(detail::saturating_mul<{}>(static_cast<{}>({}), static_cast<{}>({})), static_cast<{}>({}));",
+                    phys_type,
+                    phys_type,
                     phys_type,
                     raw_name,
+                    phys_type,
                     layout.factor as i64,
+                    phys_type,
                     layout.offset as i64
                 );
             }
@@ -917,16 +993,43 @@ impl CppGen {
                 );
             } else {
                 let raw_type = signal.raw_type.as_cpp_type();
+                line!(
+                    out,
+                    "const auto {}_shifted = detail::checked_sub<{}>({}, static_cast<{}>({}));",
+                    field_name,
+                    phys_type,
+                    field_name,
+                    phys_type,
+                    layout.offset as i64
+                );
+                line!(
+                    out,
+                    "if (!{}_shifted) return std::unexpected({}_shifted.error());",
+                    field_name,
+                    field_name
+                );
+                line!(
+                    out,
+                    "const auto {}_raw = detail::checked_div<{}>(*{}_shifted, static_cast<{}>({}));",
+                    field_name,
+                    phys_type,
+                    field_name,
+                    phys_type,
+                    layout.factor as i64
+                );
+                line!(
+                    out,
+                    "if (!{}_raw) return std::unexpected({}_raw.error());",
+                    field_name,
+                    field_name
+                );
                 Self::emit_detail_insert(
                     out,
                     raw_type,
                     insert_fn,
                     data_expr,
                     layout,
-                    &format!(
-                        "static_cast<{}>(({} - {}) / {})",
-                        raw_type, field_name, layout.offset as i64, layout.factor as i64
-                    ),
+                    &format!("static_cast<{}>(*{}_raw)", raw_type, field_name),
                 );
             }
             end_block!(out, "return {{}};");
