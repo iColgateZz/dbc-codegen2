@@ -3,17 +3,16 @@ use std::collections::BTreeMap;
 use heck::ToSnakeCase;
 
 use crate::{
-    DbcFile,
     codegen::Generator,
     empty, end_block, end_block_no_close,
     ir::{
         message::{Message, MessageId, MessageSignalClassification},
         signal::Signal,
-        signal_layout::ByteOrder,
+        signal_layout::{ByteOrder, SignalLayout},
         signal_value_enum::SignalValueEnum,
         signal_value_type::{CppType, RawType},
     },
-    line, start_block,
+    line, start_block, DbcFile,
 };
 
 use crate::codegen::config::CodegenConfig;
@@ -35,7 +34,12 @@ impl CppGen {
         for signal in &file.signals {
             if let Some(idx) = signal.signal_value_enum_idx {
                 if emitted_enum_idxs.insert(idx.0) {
-                    Self::signal_value_enum(&mut out, signal, &file.signal_value_enums[idx.0], config);
+                    Self::signal_value_enum(
+                        &mut out,
+                        signal,
+                        &file.signal_value_enums[idx.0],
+                        config,
+                    );
                 }
             }
         }
@@ -66,6 +70,175 @@ impl CppGen {
             s.push('f');
         }
         s
+    }
+
+    fn detail_extract_fn(byte_order: ByteOrder) -> &'static str {
+        match byte_order {
+            ByteOrder::LittleEndian => "extract_le",
+            ByteOrder::BigEndian => "extract_be",
+        }
+    }
+
+    fn detail_insert_fn(byte_order: ByteOrder) -> &'static str {
+        match byte_order {
+            ByteOrder::LittleEndian => "insert_le",
+            ByteOrder::BigEndian => "insert_be",
+        }
+    }
+
+    fn is_phys_float(phys_type: &str) -> bool {
+        phys_type == "float" || phys_type == "double"
+    }
+
+    fn is_raw_float(raw_type: &RawType) -> bool {
+        matches!(raw_type, RawType::Float32 | RawType::Float64)
+    }
+
+    fn is_bool_signal(signal: &Signal, file: &DbcFile) -> bool {
+        let layout = &file.signal_layouts[signal.layout.0];
+        layout.size == 1 && signal.signal_value_enum_idx.is_none()
+    }
+
+    fn signal_cpp_param_type(signal: &Signal, file: &DbcFile) -> String {
+        if let Some(idx) = signal.signal_value_enum_idx {
+            file.signal_value_enums[idx.0].name.upper_camel()
+        } else if Self::is_bool_signal(signal, file) {
+            "bool".to_string()
+        } else {
+            signal.physical_type.as_cpp_type().to_string()
+        }
+    }
+
+    fn signal_cpp_return_type(signal: &Signal, file: &DbcFile, config: &CodegenConfig) -> String {
+        if let Some(idx) = signal.signal_value_enum_idx {
+            let enum_name = file.signal_value_enums[idx.0].name.upper_camel();
+            if config.no_enum_other {
+                format!("std::expected<{}, CanError>", enum_name)
+            } else {
+                enum_name
+            }
+        } else if Self::is_bool_signal(signal, file) {
+            "bool".to_string()
+        } else {
+            signal.physical_type.as_cpp_type().to_string()
+        }
+    }
+
+    fn signal_param_decl(signal: &Signal, file: &DbcFile) -> String {
+        format!(
+            "{} {}",
+            Self::signal_cpp_param_type(signal, file),
+            signal.name.raw.to_snake_case()
+        )
+    }
+
+    fn format_function_args(args: &[String], multiline: bool) -> String {
+        if args.is_empty() {
+            return String::new();
+        }
+
+        if multiline {
+            format!("\n            {}\n        ", args.join(",\n            "))
+        } else {
+            args.join(", ")
+        }
+    }
+
+    fn emit_detail_extract(
+        out: &mut Generator,
+        cpp_type: &str,
+        var_name: &str,
+        detail_fn: &str,
+        data_expr: &str,
+        layout: &SignalLayout,
+    ) {
+        line!(
+            out,
+            "const {} {} = detail::{}<{}>({}, {}, {});",
+            cpp_type,
+            var_name,
+            detail_fn,
+            cpp_type,
+            data_expr,
+            layout.bitvec_start,
+            layout.bitvec_end
+        );
+    }
+
+    fn emit_detail_insert(
+        out: &mut Generator,
+        cpp_type: &str,
+        detail_fn: &str,
+        data_expr: &str,
+        layout: &SignalLayout,
+        value_expr: &str,
+    ) {
+        line!(
+            out,
+            "detail::{}<{}>({}, {}, {}, {});",
+            detail_fn,
+            cpp_type,
+            data_expr,
+            layout.bitvec_start,
+            layout.bitvec_end,
+            value_expr
+        );
+    }
+
+    fn emit_message_id(out: &mut Generator, msg: &Message) {
+        match msg.id {
+            MessageId::Standard(id) => line!(out, "static constexpr uint16_t ID = {};", id),
+            MessageId::Extended(id) => line!(out, "static constexpr uint32_t ID = {};", id),
+        }
+    }
+
+    fn emit_len_constant(out: &mut Generator, len: u64) {
+        line!(out, "static constexpr std::size_t LEN = {};", len);
+    }
+
+    fn emit_try_from_frame(out: &mut Generator, msg_name: &str) {
+        start_block!(
+            out,
+            "[[nodiscard]] static std::expected<{}, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept",
+            msg_name
+        );
+        line!(
+            out,
+            "if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);"
+        );
+        line!(out, "{} msg{{}};", msg_name);
+        line!(out, "std::memcpy(msg.data_.data(), frame.data(), LEN);");
+        end_block!(out, "return msg;");
+        empty!(out);
+    }
+
+    fn emit_encode_method(out: &mut Generator) {
+        line!(
+            out,
+            "[[nodiscard]] std::array<uint8_t, LEN> encode() const noexcept {{ return data_; }}"
+        );
+        empty!(out);
+    }
+
+    fn emit_data_storage(out: &mut Generator, friend_class: Option<&str>) {
+        line!(out, "private:");
+        if let Some(friend_class) = friend_class {
+            line!(out, "friend class {};", friend_class);
+        }
+        line!(out, "std::array<uint8_t, LEN> data_{{}};");
+    }
+
+    fn emit_signal_set_calls(out: &mut Generator, target: &str, signals: &[&Signal]) {
+        for signal in signals {
+            let field_name = signal.name.raw.to_snake_case();
+            line!(
+                out,
+                "if (auto r = {}.set_{}({}); !r) return std::unexpected(r.error());",
+                target,
+                field_name,
+                field_name
+            );
+        }
     }
 
     fn includes(out: &mut Generator) {
@@ -384,26 +557,11 @@ impl CppGen {
             let layout = &file.signal_layouts[signal.layout.0];
             let phys_type = signal.physical_type.as_cpp_type();
             let field_name = signal.name.raw.to_snake_case();
-            let extract_fn = match layout.byte_order {
-                ByteOrder::LittleEndian => "extract_le",
-                ByteOrder::BigEndian => "extract_be",
-            };
-            let is_raw_float = matches!(signal.raw_type, RawType::Float32 | RawType::Float64);
-            let is_phys_float = phys_type == "float" || phys_type == "double";
-            let is_bool_signal = layout.size == 1 && signal.signal_value_enum_idx.is_none();
-
-            let return_type = if let Some(idx) = signal.signal_value_enum_idx {
-                let enum_name = file.signal_value_enums[idx.0].name.upper_camel();
-                if config.no_enum_other {
-                    format!("std::expected<{}, CanError>", enum_name)
-                } else {
-                    enum_name
-                }
-            } else if is_bool_signal {
-                "bool".to_string()
-            } else {
-                phys_type.to_string()
-            };
+            let extract_fn = Self::detail_extract_fn(layout.byte_order);
+            let is_raw_float = Self::is_raw_float(&signal.raw_type);
+            let is_phys_float = Self::is_phys_float(phys_type);
+            let is_bool_signal = Self::is_bool_signal(signal, file);
+            let return_type = Self::signal_cpp_return_type(signal, file, config);
 
             start_block!(
                 out,
@@ -415,30 +573,12 @@ impl CppGen {
 
             if is_bool_signal {
                 let raw_name = format!("raw_{}", field_name);
-                line!(
-                    out,
-                    "const uint8_t {} = detail::{}<uint8_t>({}, {}, {});",
-                    raw_name,
-                    extract_fn,
-                    data_expr,
-                    layout.bitvec_start,
-                    layout.bitvec_end
-                );
+                Self::emit_detail_extract(out, "uint8_t", &raw_name, extract_fn, data_expr, layout);
                 line!(out, "return {} != 0;", raw_name);
             } else if signal.signal_value_enum_idx.is_some() {
                 let raw_type = signal.raw_type.as_cpp_type();
                 let raw_name = format!("raw_{}", field_name);
-                line!(
-                    out,
-                    "const {} {} = detail::{}<{}>({}, {}, {});",
-                    raw_type,
-                    raw_name,
-                    extract_fn,
-                    raw_type,
-                    data_expr,
-                    layout.bitvec_start,
-                    layout.bitvec_end
-                );
+                Self::emit_detail_extract(out, raw_type, &raw_name, extract_fn, data_expr, layout);
                 let from_fn = {
                     let idx = signal.signal_value_enum_idx.unwrap();
                     let enum_name = file.signal_value_enums[idx.0].name.upper_camel();
@@ -449,16 +589,13 @@ impl CppGen {
                 let uint_repr = Self::cpp_uint_repr_for_float(&signal.raw_type);
                 let factor_str = Self::format_cpp_float(layout.factor, phys_type);
                 let offset_str = Self::format_cpp_float(layout.offset, phys_type);
-                line!(
+                Self::emit_detail_extract(
                     out,
-                    "const {} {}_bits = detail::{}<{}>({}, {}, {});",
                     uint_repr,
-                    field_name,
+                    &format!("{}_bits", field_name),
                     extract_fn,
-                    uint_repr,
                     data_expr,
-                    layout.bitvec_start,
-                    layout.bitvec_end
+                    layout,
                 );
                 line!(
                     out,
@@ -481,17 +618,7 @@ impl CppGen {
                 let raw_name = format!("raw_{}", field_name);
                 let factor_str = Self::format_cpp_float(layout.factor, phys_type);
                 let offset_str = Self::format_cpp_float(layout.offset, phys_type);
-                line!(
-                    out,
-                    "const {} {} = detail::{}<{}>({}, {}, {});",
-                    raw_type,
-                    raw_name,
-                    extract_fn,
-                    raw_type,
-                    data_expr,
-                    layout.bitvec_start,
-                    layout.bitvec_end
-                );
+                Self::emit_detail_extract(out, raw_type, &raw_name, extract_fn, data_expr, layout);
                 line!(
                     out,
                     "return static_cast<{}>({}) * {} + {};",
@@ -503,17 +630,7 @@ impl CppGen {
             } else {
                 let raw_type = signal.raw_type.as_cpp_type();
                 let raw_name = format!("raw_{}", field_name);
-                line!(
-                    out,
-                    "const {} {} = detail::{}<{}>({}, {}, {});",
-                    raw_type,
-                    raw_name,
-                    extract_fn,
-                    raw_type,
-                    data_expr,
-                    layout.bitvec_start,
-                    layout.bitvec_end
-                );
+                Self::emit_detail_extract(out, raw_type, &raw_name, extract_fn, data_expr, layout);
                 line!(
                     out,
                     "return static_cast<{}>({}) * {} + {};",
@@ -584,21 +701,11 @@ impl CppGen {
             let layout = &file.signal_layouts[signal.layout.0];
             let phys_type = signal.physical_type.as_cpp_type();
             let field_name = signal.name.raw.to_snake_case();
-            let insert_fn = match layout.byte_order {
-                ByteOrder::LittleEndian => "insert_le",
-                ByteOrder::BigEndian => "insert_be",
-            };
-            let is_raw_float = matches!(signal.raw_type, RawType::Float32 | RawType::Float64);
-            let is_phys_float = phys_type == "float" || phys_type == "double";
-            let is_bool_signal = layout.size == 1 && signal.signal_value_enum_idx.is_none();
-
-            let param_type = if let Some(idx) = signal.signal_value_enum_idx {
-                file.signal_value_enums[idx.0].name.upper_camel()
-            } else if is_bool_signal {
-                "bool".to_string()
-            } else {
-                phys_type.to_string()
-            };
+            let insert_fn = Self::detail_insert_fn(layout.byte_order);
+            let is_raw_float = Self::is_raw_float(&signal.raw_type);
+            let is_phys_float = Self::is_phys_float(phys_type);
+            let is_bool_signal = Self::is_bool_signal(signal, file);
+            let param_type = Self::signal_cpp_param_type(signal, file);
 
             start_block!(
                 out,
@@ -612,28 +719,18 @@ impl CppGen {
             let data_expr = "data_.data()";
 
             if is_bool_signal {
-                line!(
+                Self::emit_detail_insert(
                     out,
-                    "detail::{}<uint8_t>({}, {}, {}, static_cast<uint8_t>({}));",
+                    "uint8_t",
                     insert_fn,
                     data_expr,
-                    layout.bitvec_start,
-                    layout.bitvec_end,
-                    field_name
+                    layout,
+                    &format!("static_cast<uint8_t>({})", field_name),
                 );
             } else if signal.signal_value_enum_idx.is_some() {
                 let raw_type = signal.raw_type.as_cpp_type();
                 let encode_expr = format!("static_cast<{}>({})", raw_type, field_name);
-                line!(
-                    out,
-                    "detail::{}<{}>({}, {}, {}, {});",
-                    insert_fn,
-                    raw_type,
-                    data_expr,
-                    layout.bitvec_start,
-                    layout.bitvec_end,
-                    encode_expr
-                );
+                Self::emit_detail_insert(out, raw_type, insert_fn, data_expr, layout, &encode_expr);
             } else if is_raw_float {
                 let uint_repr = Self::cpp_uint_repr_for_float(&signal.raw_type);
                 let factor_str = Self::format_cpp_float(layout.factor, phys_type);
@@ -656,47 +753,41 @@ impl CppGen {
                     field_name,
                     uint_repr
                 );
-                line!(
+                Self::emit_detail_insert(
                     out,
-                    "detail::{}<{}>({}, {}, {}, {}_bits);",
-                    insert_fn,
                     uint_repr,
+                    insert_fn,
                     data_expr,
-                    layout.bitvec_start,
-                    layout.bitvec_end,
-                    field_name
+                    layout,
+                    &format!("{}_bits", field_name),
                 );
             } else if is_phys_float {
                 let raw_type = signal.raw_type.as_cpp_type();
                 let factor_str = Self::format_cpp_float(layout.factor, phys_type);
                 let offset_str = Self::format_cpp_float(layout.offset, phys_type);
-                line!(
+                Self::emit_detail_insert(
                     out,
-                    "detail::{}<{}>({}, {}, {}, static_cast<{}>(({} - {}) / {}));",
+                    raw_type,
                     insert_fn,
-                    raw_type,
                     data_expr,
-                    layout.bitvec_start,
-                    layout.bitvec_end,
-                    raw_type,
-                    field_name,
-                    offset_str,
-                    factor_str
+                    layout,
+                    &format!(
+                        "static_cast<{}>(({} - {}) / {})",
+                        raw_type, field_name, offset_str, factor_str
+                    ),
                 );
             } else {
                 let raw_type = signal.raw_type.as_cpp_type();
-                line!(
+                Self::emit_detail_insert(
                     out,
-                    "detail::{}<{}>({}, {}, {}, static_cast<{}>(({} - {}) / {}));",
+                    raw_type,
                     insert_fn,
-                    raw_type,
                     data_expr,
-                    layout.bitvec_start,
-                    layout.bitvec_end,
-                    raw_type,
-                    field_name,
-                    layout.offset as i64,
-                    layout.factor as i64
+                    layout,
+                    &format!(
+                        "static_cast<{}>(({} - {}) / {})",
+                        raw_type, field_name, layout.offset as i64, layout.factor as i64
+                    ),
                 );
             }
             end_block!(out, "return {{}};");
@@ -712,39 +803,9 @@ impl CppGen {
     ) {
         let args = signals
             .iter()
-            .map(|s| {
-                if let Some(idx) = s.signal_value_enum_idx {
-                    format!(
-                        "{} {}",
-                        file.signal_value_enums[idx.0].name.upper_camel(),
-                        s.name.raw.to_snake_case()
-                    )
-                } else if file.signal_layouts[s.layout.0].size == 1 {
-                    format!("bool {}", s.name.raw.to_snake_case())
-                } else {
-                    format!(
-                        "{} {}",
-                        s.physical_type.as_cpp_type(),
-                        s.name.raw.to_snake_case()
-                    )
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(
-                ",
-            ",
-            );
-
-        let args_formatted = if args.is_empty() {
-            String::new()
-        } else {
-            format!(
-                "
-            {}
-        ",
-                args
-            )
-        };
+            .map(|signal| Self::signal_param_decl(signal, file))
+            .collect::<Vec<_>>();
+        let args_formatted = Self::format_function_args(&args, true);
 
         start_block!(
             out,
@@ -753,15 +814,7 @@ impl CppGen {
             args_formatted
         );
         line!(out, "{} msg{{}};", msg_name);
-        for signal in signals {
-            let f = signal.name.raw.to_snake_case();
-            line!(
-                out,
-                "if (auto r = msg.set_{}({}); !r) return std::unexpected(r.error());",
-                f,
-                f
-            );
-        }
+        Self::emit_signal_set_calls(out, "msg", signals);
         end_block!(out, "return msg;");
         empty!(out);
     }
@@ -780,7 +833,7 @@ impl CppGen {
 
         line!(out, "public:");
 
-        line!(out, "static constexpr std::size_t LEN = {};", msg.size);
+        Self::emit_len_constant(out, msg.size);
         empty!(out);
 
         Self::emit_create_method(out, &class_name, signals, file);
@@ -788,16 +841,10 @@ impl CppGen {
         Self::emit_signal_getters(out, signals, file, config);
         Self::emit_signal_setters(out, signals, file, config);
 
-        line!(
-            out,
-            "[[nodiscard]] std::array<uint8_t, LEN> encode() const noexcept {{ return data_; }}"
-        );
-        empty!(out);
+        Self::emit_encode_method(out);
 
         // Required for multiplex setter
-        line!(out, "private:");
-        line!(out, "friend class {};", msg.name.upper_camel());
-        line!(out, "std::array<uint8_t, LEN> data_{{}};");
+        Self::emit_data_storage(out, Some(&msg.name.upper_camel()));
 
         end_block!(out, "");
         empty!(out);
@@ -813,40 +860,20 @@ impl CppGen {
                 start_block!(out, "class {}", msg_name);
                 line!(out, "public:");
 
-                match msg.id {
-                    MessageId::Standard(id) => line!(out, "static constexpr uint16_t ID = {};", id),
-                    MessageId::Extended(id) => line!(out, "static constexpr uint32_t ID = {};", id),
-                }
-                line!(out, "static constexpr std::size_t LEN = {};", msg.size);
+                Self::emit_message_id(out, msg);
+                Self::emit_len_constant(out, msg.size);
                 empty!(out);
 
                 Self::emit_create_method(out, &msg_name, &sigs, file);
 
-                start_block!(
-                    out,
-                    "[[nodiscard]] static std::expected<{}, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept",
-                    msg_name
-                );
-                line!(
-                    out,
-                    "if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);"
-                );
-                line!(out, "{} msg{{}};", msg_name);
-                line!(out, "std::memcpy(msg.data_.data(), frame.data(), LEN);");
-                end_block!(out, "return msg;");
-                empty!(out);
+                Self::emit_try_from_frame(out, &msg_name);
 
                 Self::emit_signal_getters(out, &sigs, file, config);
                 Self::emit_signal_setters(out, &sigs, file, config);
 
-                line!(
-                    out,
-                    "[[nodiscard]] std::array<uint8_t, LEN> encode() const noexcept {{ return data_; }}"
-                );
-                empty!(out);
+                Self::emit_encode_method(out);
 
-                line!(out, "private:");
-                line!(out, "std::array<uint8_t, LEN> data_{{}};");
+                Self::emit_data_storage(out, None);
 
                 end_block!(out, "");
                 empty!(out);
@@ -889,40 +916,16 @@ impl CppGen {
                 start_block!(out, "class {}", msg_name);
                 line!(out, "public:");
 
-                match msg.id {
-                    MessageId::Standard(id) => line!(out, "static constexpr uint16_t ID = {};", id),
-                    MessageId::Extended(id) => line!(out, "static constexpr uint32_t ID = {};", id),
-                }
-                line!(out, "static constexpr std::size_t LEN = {};", msg.size);
+                Self::emit_message_id(out, msg);
+                Self::emit_len_constant(out, msg.size);
                 empty!(out);
 
-                let args = plain_sigs
+                let mut args = plain_sigs
                     .iter()
-                    .map(|s| {
-                        if let Some(idx) = s.signal_value_enum_idx {
-                            format!(
-                                "{} {}",
-                                file.signal_value_enums[idx.0].name.upper_camel(),
-                                s.name.raw.to_snake_case()
-                            )
-                        } else if file.signal_layouts[s.layout.0].size == 1 {
-                            format!("bool {}", s.name.raw.to_snake_case())
-                        } else {
-                            format!(
-                                "{} {}",
-                                s.physical_type.as_cpp_type(),
-                                s.name.raw.to_snake_case()
-                            )
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
-
-                let args_formatted = if args.is_empty() {
-                    format!("{} mux", mux_enum_name)
-                } else {
-                    format!("{}, {} mux", args, mux_enum_name)
-                };
+                    .map(|signal| Self::signal_param_decl(signal, file))
+                    .collect::<Vec<_>>();
+                args.push(format!("{} mux", mux_enum_name));
+                let args_formatted = Self::format_function_args(&args, false);
 
                 start_block!(
                     out,
@@ -931,15 +934,7 @@ impl CppGen {
                     args_formatted
                 );
                 line!(out, "{} msg{{}};", msg_name);
-                for signal in &plain_sigs {
-                    let f = signal.name.raw.to_snake_case();
-                    line!(
-                        out,
-                        "if (auto r = msg.set_{}({}); !r) return std::unexpected(r.error());",
-                        f,
-                        f
-                    );
-                }
+                Self::emit_signal_set_calls(out, "msg", &plain_sigs);
 
                 start_block!(out, "std::visit([&msg](const auto& v)");
                 line!(out, "using T = std::decay_t<decltype(v)>;");
@@ -954,33 +949,15 @@ impl CppGen {
                 end_block!(out, "return msg;");
                 empty!(out);
 
-                start_block!(
-                    out,
-                    "[[nodiscard]] static std::expected<{}, CanError> try_from_frame(std::span<const uint8_t> frame) noexcept",
-                    msg_name
-                );
-                line!(
-                    out,
-                    "if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);"
-                );
-                line!(out, "{} msg{{}};", msg_name);
-                line!(out, "std::memcpy(msg.data_.data(), frame.data(), LEN);");
-                end_block!(out, "return msg;");
-                empty!(out);
+                Self::emit_try_from_frame(out, &msg_name);
 
                 Self::emit_signal_getters(out, &plain_sigs, file, config);
                 Self::emit_signal_setters(out, &plain_sigs, file, config);
 
                 let mux_layout = &file.signal_layouts[mux_sig.layout.0];
                 let mux_raw_type = mux_sig.raw_type.as_cpp_type();
-                let mux_extract_fn = match mux_layout.byte_order {
-                    ByteOrder::LittleEndian => "extract_le",
-                    ByteOrder::BigEndian => "extract_be",
-                };
-                let mux_insert_fn = match mux_layout.byte_order {
-                    ByteOrder::LittleEndian => "insert_le",
-                    ByteOrder::BigEndian => "insert_be",
-                };
+                let mux_extract_fn = Self::detail_extract_fn(mux_layout.byte_order);
+                let mux_insert_fn = Self::detail_insert_fn(mux_layout.byte_order);
 
                 // Mux Getter
                 start_block!(
@@ -988,15 +965,13 @@ impl CppGen {
                     "[[nodiscard]] std::expected<{}, CanError> mux() const noexcept",
                     mux_enum_name
                 );
-                line!(
+                Self::emit_detail_extract(
                     out,
-                    "const {} mux_raw = detail::{}<{}>({}, {}, {});",
                     mux_raw_type,
+                    "mux_raw",
                     mux_extract_fn,
-                    mux_raw_type,
                     "data_.data()",
-                    mux_layout.bitvec_start,
-                    mux_layout.bitvec_end
+                    mux_layout,
                 );
                 start_block!(out, "switch (mux_raw)");
                 for (mux_value, _) in &muxed_sigs {
@@ -1026,29 +1001,21 @@ impl CppGen {
                         out,
                         "for (std::size_t i = 0; i < LEN; ++i) data_[i] |= value.data_[i];"
                     );
-                    line!(
+                    Self::emit_detail_insert(
                         out,
-                        "detail::{}<{}>({}, {}, {}, static_cast<{}>({}));",
+                        mux_raw_type,
                         mux_insert_fn,
-                        mux_raw_type,
                         "data_.data()",
-                        mux_layout.bitvec_start,
-                        mux_layout.bitvec_end,
-                        mux_raw_type,
-                        mux_value
+                        mux_layout,
+                        &format!("static_cast<{}>({})", mux_raw_type, mux_value),
                     );
                     end_block!(out, "");
                 }
                 empty!(out);
 
-                line!(
-                    out,
-                    "[[nodiscard]] std::array<uint8_t, LEN> encode() const noexcept {{ return data_; }}"
-                );
-                empty!(out);
+                Self::emit_encode_method(out);
 
-                line!(out, "private:");
-                line!(out, "std::array<uint8_t, LEN> data_{{}};");
+                Self::emit_data_storage(out, None);
 
                 end_block!(out, "");
                 empty!(out);
