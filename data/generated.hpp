@@ -165,7 +165,7 @@ io_debug_test_enum_enum_from_raw(uint8_t v) noexcept {
 class DriverHeartbeatMsg {
   public:
   static constexpr CanId ID = CanId::standard(100);
-  static constexpr std::size_t LEN = 1;
+  static constexpr std::size_t LEN{1};
   
   [[nodiscard]] static std::expected<DriverHeartbeatMsg, CanError> create(
             DriverHeartbeatCmdEnum driver_heartbeat_cmd
@@ -222,7 +222,7 @@ static_assert(GeneratedCanMessage<DriverHeartbeatMsg>);
 class IoDebugMsg {
   public:
   static constexpr CanId ID = CanId::standard(500);
-  static constexpr std::size_t LEN = 4;
+  static constexpr std::size_t LEN{4};
   
   [[nodiscard]] static std::expected<IoDebugMsg, CanError> create(
             uint8_t io_debug_test_unsigned,
@@ -357,7 +357,7 @@ static_assert(GeneratedCanMessage<IoDebugMsg>);
 class MotorCmdMsg {
   public:
   static constexpr CanId ID = CanId::standard(101);
-  static constexpr std::size_t LEN = 1;
+  static constexpr std::size_t LEN{1};
   
   [[nodiscard]] static std::expected<MotorCmdMsg, CanError> create(
             int8_t motor_cmd_steer,
@@ -441,7 +441,7 @@ static_assert(GeneratedCanMessage<MotorCmdMsg>);
 class MotorStatusMsg {
   public:
   static constexpr CanId ID = CanId::standard(400);
-  static constexpr std::size_t LEN = 3;
+  static constexpr std::size_t LEN{3};
   
   [[nodiscard]] static std::expected<MotorStatusMsg, CanError> create(
             bool motor_status_wheel_error,
@@ -517,7 +517,7 @@ static_assert(GeneratedCanMessage<MotorStatusMsg>);
 
 class SensorSonarsMsgMux0 {
   public:
-  static constexpr std::size_t LEN = 8;
+  static constexpr std::size_t LEN{8};
   
   [[nodiscard]] static std::expected<SensorSonarsMsgMux0, CanError> create(
             float sensor_sonars_left,
@@ -638,7 +638,7 @@ class SensorSonarsMsgMux0 {
 
 class SensorSonarsMsgMux1 {
   public:
-  static constexpr std::size_t LEN = 8;
+  static constexpr std::size_t LEN{8};
   
   [[nodiscard]] static std::expected<SensorSonarsMsgMux1, CanError> create(
             float sensor_sonars_no_filt_left,
@@ -768,7 +768,7 @@ using SensorSonarsMsgMux = std::variant<SensorSonarsMsgMux0, SensorSonarsMsgMux1
 class SensorSonarsMsg {
   public:
   static constexpr CanId ID = CanId::standard(200);
-  static constexpr std::size_t LEN = 8;
+  static constexpr std::size_t LEN{8};
   
   [[nodiscard]] static std::expected<SensorSonarsMsg, CanError> create(uint16_t sensor_sonars_err_count, SensorSonarsMsgMux mux) noexcept {
     SensorSonarsMsg msg{};

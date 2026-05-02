@@ -225,7 +225,7 @@ impl CppGen {
     }
 
     fn emit_len_constant(out: &mut Generator, len: u64) {
-        line!(out, "static constexpr std::size_t LEN = {};", len);
+        line!(out, "static constexpr std::size_t LEN{{{}}};", len);
     }
 
     fn emit_try_from_frame(out: &mut Generator, msg_name: &str) {
