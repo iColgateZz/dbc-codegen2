@@ -29,6 +29,7 @@ impl CppGen {
 
         Self::includes(&mut out);
         Self::errors(&mut out);
+        Self::can_id(&mut out);
         Self::message_interface(&mut out);
         Self::endian_read_and_write(&mut out);
 
@@ -214,8 +215,12 @@ impl CppGen {
 
     fn emit_message_id(out: &mut Generator, msg: &Message) {
         match msg.id {
-            MessageId::Standard(id) => line!(out, "static constexpr uint16_t ID = {};", id),
-            MessageId::Extended(id) => line!(out, "static constexpr uint32_t ID = {};", id),
+            MessageId::Standard(id) => {
+                line!(out, "static constexpr CanId ID = CanId::standard({});", id)
+            }
+            MessageId::Extended(id) => {
+                line!(out, "static constexpr CanId ID = CanId::extended({});", id)
+            }
         }
     }
 
@@ -226,7 +231,7 @@ impl CppGen {
     fn emit_try_from_frame(out: &mut Generator, msg_name: &str) {
         start_block!(
             out,
-            "[[nodiscard]] static std::expected<{}, CanError> try_from_frame(uint32_t id, std::span<const uint8_t> frame) noexcept",
+            "[[nodiscard]] static std::expected<{}, CanError> try_from_frame(CanId id, std::span<const uint8_t> frame) noexcept",
             msg_name
         );
         line!(
@@ -235,7 +240,7 @@ impl CppGen {
         );
         line!(
             out,
-            "if (id != static_cast<uint32_t>(ID)) return std::unexpected(CanError::InvalidFrameId);"
+            "if (id != ID) return std::unexpected(CanError::InvalidFrameId);"
         );
         line!(out, "{} msg{{}};", msg_name);
         line!(out, "std::memcpy(msg.data_.data(), frame.data(), LEN);");
@@ -301,11 +306,49 @@ impl CppGen {
         empty!(out);
     }
 
+    fn can_id(out: &mut Generator) {
+        start_block!(out, "struct CanId");
+        start_block!(out, "enum class Kind : uint8_t");
+        line!(out, "Standard,");
+        line!(out, "Extended,");
+        end_block!(out, "");
+        empty!(out);
+
+        line!(out, "uint32_t value;");
+        line!(out, "Kind kind;");
+        empty!(out);
+
+        line!(
+            out,
+            "[[nodiscard]] static constexpr CanId standard(uint32_t value) noexcept {{ return CanId{{value, Kind::Standard}}; }}"
+        );
+        line!(
+            out,
+            "[[nodiscard]] static constexpr CanId extended(uint32_t value) noexcept {{ return CanId{{value, Kind::Extended}}; }}"
+        );
+        line!(
+            out,
+            "[[nodiscard]] static constexpr CanId from_raw(uint32_t value, bool is_extended) noexcept {{ return is_extended ? extended(value) : standard(value); }}"
+        );
+        empty!(out);
+
+        line!(
+            out,
+            "[[nodiscard]] constexpr uint32_t dispatch_key() const noexcept {{ return value | (kind == Kind::Extended ? 0x80000000u : 0u); }}"
+        );
+        line!(
+            out,
+            "constexpr bool operator==(const CanId&) const noexcept = default;"
+        );
+        end_block!(out, "");
+        empty!(out);
+    }
+
     fn message_interface(out: &mut Generator) {
         line!(out, "template <typename Msg>");
         line!(
             out,
-            "concept GeneratedCanMessage = requires(uint32_t id, std::span<const uint8_t> frame, const Msg& msg) {{"
+            "concept GeneratedCanMessage = requires(CanId id, std::span<const uint8_t> frame, const Msg& msg) {{"
         );
         line!(out, "  Msg::ID;");
         line!(out, "  Msg::LEN;");
@@ -1140,14 +1183,14 @@ impl CppGen {
         line!(out, "inline std::expected<CanMsg, CanError>");
         start_block!(
             out,
-            "parse_can(uint32_t id, std::span<const uint8_t> frame) noexcept"
+            "parse_can(CanId id, std::span<const uint8_t> frame) noexcept"
         );
 
-        start_block!(out, "switch (id)");
+        start_block!(out, "switch (id.dispatch_key())");
 
         for msg in messages {
             let name = msg.name.upper_camel();
-            line!(out, "case {}::ID:", name);
+            line!(out, "case {}::ID.dispatch_key():", name);
             start_block!(out, "");
             line!(out, "auto r = {}::try_from_frame(id, frame);", name);
             line!(out, "if (!r) return std::unexpected(r.error());");
