@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use heck::ToSnakeCase;
 
 use crate::{
+    DbcFile,
     codegen::Generator,
     empty, end_block, end_block_no_close,
     ir::{
@@ -12,7 +13,7 @@ use crate::{
         signal_value_enum::SignalValueEnum,
         signal_value_type::{CppType, RawType},
     },
-    line, start_block, DbcFile,
+    line, start_block,
 };
 
 use crate::codegen::config::CodegenConfig;
@@ -83,6 +84,13 @@ impl CppGen {
         match byte_order {
             ByteOrder::LittleEndian => "insert_le",
             ByteOrder::BigEndian => "insert_be",
+        }
+    }
+
+    fn detail_copy_fn(byte_order: ByteOrder) -> &'static str {
+        match byte_order {
+            ByteOrder::LittleEndian => "copy_le",
+            ByteOrder::BigEndian => "copy_be",
         }
     }
 
@@ -182,6 +190,24 @@ impl CppGen {
             layout.bitvec_start,
             layout.bitvec_end,
             value_expr
+        );
+    }
+
+    fn emit_detail_copy(
+        out: &mut Generator,
+        detail_fn: &str,
+        dst_expr: &str,
+        src_expr: &str,
+        layout: &SignalLayout,
+    ) {
+        line!(
+            out,
+            "detail::{}({}, {}, {}, {});",
+            detail_fn,
+            dst_expr,
+            src_expr,
+            layout.bitvec_start,
+            layout.bitvec_end
         );
     }
 
@@ -353,6 +379,54 @@ impl CppGen {
         empty!(out);
     }
 
+    fn copy_le_fn(out: &mut Generator) {
+        start_block!(
+            out,
+            "constexpr void copy_le(uint8_t* dst, const uint8_t* src, std::size_t start, std::size_t end) noexcept"
+        );
+        start_block!(
+            out,
+            "for (std::size_t bit_idx = start; bit_idx < end; ++bit_idx)"
+        );
+        line!(out, "const std::size_t byte_idx = bit_idx / 8;");
+        line!(
+            out,
+            "const uint8_t mask = static_cast<uint8_t>(1u << (bit_idx % 8));"
+        );
+        line!(out, "dst[byte_idx] &= static_cast<uint8_t>(~mask);");
+        line!(
+            out,
+            "dst[byte_idx] |= static_cast<uint8_t>(src[byte_idx] & mask);"
+        );
+        end_block!(out, "");
+        end_block!(out, "");
+        empty!(out);
+    }
+
+    fn copy_be_fn(out: &mut Generator) {
+        start_block!(
+            out,
+            "constexpr void copy_be(uint8_t* dst, const uint8_t* src, std::size_t start, std::size_t end) noexcept"
+        );
+        start_block!(
+            out,
+            "for (std::size_t bit_idx = start; bit_idx < end; ++bit_idx)"
+        );
+        line!(out, "const std::size_t byte_idx = bit_idx / 8;");
+        line!(
+            out,
+            "const uint8_t mask = static_cast<uint8_t>(1u << (7 - bit_idx % 8));"
+        );
+        line!(out, "dst[byte_idx] &= static_cast<uint8_t>(~mask);");
+        line!(
+            out,
+            "dst[byte_idx] |= static_cast<uint8_t>(src[byte_idx] & mask);"
+        );
+        end_block!(out, "");
+        end_block!(out, "");
+        empty!(out);
+    }
+
     fn extract_be_fn(out: &mut Generator) {
         line!(out, "template <typename T>");
         start_block!(
@@ -389,6 +463,8 @@ impl CppGen {
         Self::extract_be_fn(out);
         Self::insert_le_fn(out);
         Self::insert_be_fn(out);
+        Self::copy_le_fn(out);
+        Self::copy_be_fn(out);
 
         line!(out, "}} // namespace detail");
         empty!(out);
@@ -988,8 +1064,7 @@ impl CppGen {
                 end_block!(out, "");
                 empty!(out);
 
-                // Mux Setters
-                for (mux_value, _) in &muxed_sigs {
+                for (mux_value, sigs) in &muxed_sigs {
                     let variant_class = format!("{}Mux{}", msg_name, mux_value);
                     start_block!(
                         out,
@@ -997,10 +1072,17 @@ impl CppGen {
                         mux_value,
                         variant_class
                     );
-                    line!(
-                        out,
-                        "for (std::size_t i = 0; i < LEN; ++i) data_[i] |= value.data_[i];"
-                    );
+                    for sig in sigs {
+                        let layout = &file.signal_layouts[sig.layout.0];
+                        let copy_fn = Self::detail_copy_fn(layout.byte_order);
+                        Self::emit_detail_copy(
+                            out,
+                            copy_fn,
+                            "data_.data()",
+                            "value.data_.data()",
+                            layout,
+                        );
+                    }
                     Self::emit_detail_insert(
                         out,
                         mux_raw_type,

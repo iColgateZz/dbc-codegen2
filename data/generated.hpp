@@ -87,6 +87,24 @@ constexpr void insert_be(uint8_t* data, std::size_t start, std::size_t end, T va
   };
 };
 
+constexpr void copy_le(uint8_t* dst, const uint8_t* src, std::size_t start, std::size_t end) noexcept {
+  for (std::size_t bit_idx = start; bit_idx < end; ++bit_idx) {
+    const std::size_t byte_idx = bit_idx / 8;
+    const uint8_t mask = static_cast<uint8_t>(1u << (bit_idx % 8));
+    dst[byte_idx] &= static_cast<uint8_t>(~mask);
+    dst[byte_idx] |= static_cast<uint8_t>(src[byte_idx] & mask);
+  };
+};
+
+constexpr void copy_be(uint8_t* dst, const uint8_t* src, std::size_t start, std::size_t end) noexcept {
+  for (std::size_t bit_idx = start; bit_idx < end; ++bit_idx) {
+    const std::size_t byte_idx = bit_idx / 8;
+    const uint8_t mask = static_cast<uint8_t>(1u << (7 - bit_idx % 8));
+    dst[byte_idx] &= static_cast<uint8_t>(~mask);
+    dst[byte_idx] |= static_cast<uint8_t>(src[byte_idx] & mask);
+  };
+};
+
 } // namespace detail
 
 enum class DriverHeartbeatCmdEnum : uint8_t {
@@ -783,11 +801,17 @@ class SensorSonarsMsg {
   };
   
   void set_mux_0(const SensorSonarsMsgMux0& value) noexcept {
-    for (std::size_t i = 0; i < LEN; ++i) data_[i] |= value.data_[i];
+    detail::copy_le(data_.data(), value.data_.data(), 16, 28);
+    detail::copy_le(data_.data(), value.data_.data(), 28, 40);
+    detail::copy_le(data_.data(), value.data_.data(), 40, 52);
+    detail::copy_le(data_.data(), value.data_.data(), 52, 64);
     detail::insert_le<uint8_t>(data_.data(), 0, 4, static_cast<uint8_t>(0));
   };
   void set_mux_1(const SensorSonarsMsgMux1& value) noexcept {
-    for (std::size_t i = 0; i < LEN; ++i) data_[i] |= value.data_[i];
+    detail::copy_le(data_.data(), value.data_.data(), 16, 28);
+    detail::copy_le(data_.data(), value.data_.data(), 28, 40);
+    detail::copy_le(data_.data(), value.data_.data(), 40, 52);
+    detail::copy_le(data_.data(), value.data_.data(), 52, 64);
     detail::insert_le<uint8_t>(data_.data(), 0, 4, static_cast<uint8_t>(1));
   };
   
