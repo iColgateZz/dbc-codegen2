@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ir::message::{MessageId, Message},
+    ir::message::{Message, MessageId},
     middle_end::nodes::{CheckNode, Diagnostics},
 };
 

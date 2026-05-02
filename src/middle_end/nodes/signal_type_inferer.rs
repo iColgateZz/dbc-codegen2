@@ -29,7 +29,9 @@ impl TransformationNode for InferSignalTypes {
     fn transform(&self, file: &mut crate::DbcFile) {
         for sig in &mut file.signals {
             let sig_layout = &file.signal_layouts[sig.layout.0];
-            let sve_option = sig.signal_value_enum_idx.map(|idx| &file.signal_value_enums[idx.0]);
+            let sve_option = sig
+                .signal_value_enum_idx
+                .map(|idx| &file.signal_value_enums[idx.0]);
             sig.raw_type = infer_raw_type(sig, sig_layout);
             sig.physical_type = infer_physical_type(sig, sig_layout, sve_option);
         }
@@ -81,15 +83,15 @@ fn infer_physical_type(
 
 fn enum_coverage(size: u64, variant_count: usize) -> EnumCoverage {
     match 1u128.checked_shl(size as u32) {
-        Some(possible_values) if variant_count as u128 == possible_values => EnumCoverage::Exhaustive,
+        Some(possible_values) if variant_count as u128 == possible_values => {
+            EnumCoverage::Exhaustive
+        }
         _ => EnumCoverage::Partial,
     }
 }
 
 fn is_bool_signal(sig_layout: &SignalLayout) -> bool {
-    sig_layout.size == 1
-        && sig_layout.factor == 1.0
-        && sig_layout.offset == 0.0
+    sig_layout.size == 1 && sig_layout.factor == 1.0 && sig_layout.offset == 0.0
 }
 
 fn is_float_scaled(sig_layout: &SignalLayout) -> bool {

@@ -1,5 +1,5 @@
-use heck::ToUpperCamelCase;
 use heck::ToSnakeCase;
+use heck::ToUpperCamelCase;
 
 #[derive(Debug, Clone)]
 pub struct Identifier {

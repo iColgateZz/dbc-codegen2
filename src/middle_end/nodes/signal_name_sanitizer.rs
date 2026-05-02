@@ -7,7 +7,6 @@ pub struct SanitizeSignalNames;
 
 impl TransformationNode for SanitizeSignalNames {
     fn transform(&self, file: &mut crate::DbcFile) {
-        
         for msg in &mut file.messages {
             let mut counts: HashMap<String, usize> = HashMap::new();
 

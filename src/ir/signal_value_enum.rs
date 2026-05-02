@@ -1,4 +1,6 @@
-use crate::ir::{ValueDescription, identifier::Identifier, map_into, signal_value_type::PhysicalType};
+use crate::ir::{
+    ValueDescription, identifier::Identifier, map_into, signal_value_type::PhysicalType,
+};
 use can_dbc::ValDescription as ParsedValueDescription;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

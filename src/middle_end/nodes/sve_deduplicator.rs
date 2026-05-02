@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use super::transformation::TransformationNode;
 use crate::ir::signal_value_enum::SignalValueEnum;
 
-
 /// Deduplicate SignalValueEnums.
-/// 
+///
 /// If enabled, performs the deduplication.
 /// Enums with same names and variants are treated as one.
 pub struct DeduplicateSignalValueEnums {

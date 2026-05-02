@@ -4,7 +4,14 @@ use std::path::PathBuf;
 
 use crate::codegen;
 use crate::codegen::config::CodegenConfig;
-use crate::middle_end::nodes::{AttachMessageSignalUsage, AttachSignalValueEnumType, CheckEnumVariants, CheckMessageSignalUsage, CheckSignalLayoutValidity, CheckSignalScalingArithmeticSafety, CheckSignalPhysicalRangeRepresentable, CheckUniqueMessageIds, CheckUnsupportedMultiplexing, CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics, InferSignalTypes, PrefixSignalValueEnumName, SanitizeMessageNames, SanitizeSVENames, SanitizeSignalNames};
+use crate::middle_end::nodes::{
+    AttachMessageSignalUsage, AttachSignalValueEnumType, CheckEnumVariants,
+    CheckMessageSignalUsage, CheckSignalLayoutValidity, CheckSignalPhysicalRangeRepresentable,
+    CheckSignalScalingArithmeticSafety, CheckUniqueMessageIds, CheckUnsupportedMultiplexing,
+    CheckZeroZeroRanges, ComputeBitvecPositions, DeduplicateSignalValueEnums, Diagnostics,
+    InferSignalTypes, PrefixSignalValueEnumName, SanitizeMessageNames, SanitizeSVENames,
+    SanitizeSignalNames,
+};
 use crate::middle_end::pipeline::check_pipeline::CheckPipeline;
 use crate::utils::Language;
 use crate::{
@@ -44,13 +51,17 @@ impl App {
 
         let mut diagnostics = Diagnostics::default();
         CheckPipeline::new()
-            .add(CheckZeroZeroRanges {zero_zero_range_allows_all: config.zero_zero_range_allows_all})
+            .add(CheckZeroZeroRanges {
+                zero_zero_range_allows_all: config.zero_zero_range_allows_all,
+            })
             .add(CheckUniqueMessageIds)
             .add(CheckSignalLayoutValidity)
             .add(CheckMessageSignalUsage)
             .add(CheckUnsupportedMultiplexing)
             .add(CheckEnumVariants)
-            .add(CheckSignalPhysicalRangeRepresentable {zero_zero_range_allows_all: config.zero_zero_range_allows_all})
+            .add(CheckSignalPhysicalRangeRepresentable {
+                zero_zero_range_allows_all: config.zero_zero_range_allows_all,
+            })
             .add(CheckSignalScalingArithmeticSafety)
             .run(&dbc, &mut diagnostics);
 
@@ -62,8 +73,12 @@ impl App {
 
         TransformationPipeline::new()
             .add(SanitizeSignalEnumVariantNames)
-            .add(DeduplicateSignalValueEnums {dedup_enabled: !config.no_enum_dedup})
-            .add(PrefixSignalValueEnumName {dedup_enabled: !config.no_enum_dedup})
+            .add(DeduplicateSignalValueEnums {
+                dedup_enabled: !config.no_enum_dedup,
+            })
+            .add(PrefixSignalValueEnumName {
+                dedup_enabled: !config.no_enum_dedup,
+            })
             .add(AttachSignalValueEnumType)
             .add(SanitizeMessageNames)
             .add(SanitizeSVENames)
@@ -115,6 +130,7 @@ fn merge_parsed_dbcs(dst: &mut ParsedDbc, mut src: ParsedDbc) {
     dst.value_descriptions.append(&mut src.value_descriptions);
     // dst.signal_type_refs.append(&mut src.signal_type_refs);
     // dst.signal_groups.append(&mut src.signal_groups);
-    dst.signal_extended_value_type_list.append(&mut src.signal_extended_value_type_list);
+    dst.signal_extended_value_type_list
+        .append(&mut src.signal_extended_value_type_list);
     dst.extended_multiplex.append(&mut src.extended_multiplex);
 }

@@ -1,10 +1,13 @@
+use crate::ir::{
+    ExtendedValueType, Message, MessageLayout, MessageLayoutIdx, Signal, SignalIdx, SignalLayout,
+    SignalLayoutIdx, SignalValueEnum, SignalValueEnumIdx, map_into,
+};
+use can_dbc::Comment as ParsedComment;
 use can_dbc::Dbc as ParsedDbc;
 use can_dbc::Message as ParsedMessage;
 use can_dbc::MessageId as ParsedMessageId;
 use can_dbc::Signal as ParsedSignal;
-use can_dbc::Comment as ParsedComment;
 use can_dbc::SignalExtendedValueTypeList as ParsedExtendedValueType;
-use crate::ir::{map_into, SignalValueEnum, SignalValueEnumIdx, ExtendedValueType, Signal, Message, SignalIdx, SignalLayout, SignalLayoutIdx, MessageLayout, MessageLayoutIdx};
 use can_dbc::ValueDescription as ParsedValueDescription;
 
 use std::collections::HashMap;
@@ -28,7 +31,6 @@ pub struct IRBuilder {
 }
 
 impl IRBuilder {
-
     pub fn to_ir(value: ParsedDbc) -> DbcFile {
         let mut builder = Self::new(value);
         builder.build();
@@ -70,7 +72,14 @@ impl IRBuilder {
     }
 
     fn build_message(&mut self, msg: ParsedMessage) {
-        let ParsedMessage { id, name, size, transmitter, signals, .. } = msg;
+        let ParsedMessage {
+            id,
+            name,
+            size,
+            transmitter,
+            signals,
+            ..
+        } = msg;
 
         let mut signal_idxs = Vec::new();
         let mut signal_layout_idxs = Vec::new();
@@ -123,7 +132,6 @@ impl IRBuilder {
         message_id: can_dbc::MessageId,
         parsed_sig: ParsedSignal,
     ) -> (SignalIdx, SignalLayoutIdx) {
-
         let key = (message_id, parsed_sig.name.clone());
 
         let layout_idx = self.build_signal_layout(&parsed_sig);
@@ -165,7 +173,9 @@ impl IRBuilder {
         idx
     }
 
-    fn value_enum_map(value_descriptions: Vec<ParsedValueDescription>) -> HashMap<SignalKey, SignalValueEnum> {
+    fn value_enum_map(
+        value_descriptions: Vec<ParsedValueDescription>,
+    ) -> HashMap<SignalKey, SignalValueEnum> {
         let mut value_enum_map: HashMap<SignalKey, SignalValueEnum> = HashMap::new();
 
         for value_enum in value_descriptions {
@@ -183,14 +193,20 @@ impl IRBuilder {
         value_enum_map
     }
 
-    fn extended_type_map(extended_types: Vec<ParsedExtendedValueType>) -> HashMap<SignalKey, ExtendedValueType> {
+    fn extended_type_map(
+        extended_types: Vec<ParsedExtendedValueType>,
+    ) -> HashMap<SignalKey, ExtendedValueType> {
         let mut extended_type_map: HashMap<SignalKey, ExtendedValueType> = HashMap::new();
 
         for ext in extended_types {
             let ir_ext_type = ExtendedValueType::from(ext.signal_extended_value_type);
 
-            let ParsedExtendedValueType { message_id, signal_name, ..} = ext;
-            extended_type_map.insert((message_id, signal_name),ir_ext_type);
+            let ParsedExtendedValueType {
+                message_id,
+                signal_name,
+                ..
+            } = ext;
+            extended_type_map.insert((message_id, signal_name), ir_ext_type);
         }
 
         extended_type_map
@@ -198,10 +214,7 @@ impl IRBuilder {
 
     fn comment_maps(
         comments: Vec<ParsedComment>,
-    ) -> (
-        HashMap<ParsedMessageId, String>,
-        HashMap<SignalKey, String>,
-    ) {
+    ) -> (HashMap<ParsedMessageId, String>, HashMap<SignalKey, String>) {
         let mut msg_map = HashMap::new();
         let mut sig_map = HashMap::new();
 
@@ -210,7 +223,11 @@ impl IRBuilder {
                 ParsedComment::Message { id, comment } => {
                     msg_map.insert(id, comment);
                 }
-                ParsedComment::Signal { message_id, name, comment } => {
+                ParsedComment::Signal {
+                    message_id,
+                    name,
+                    comment,
+                } => {
                     sig_map.insert((message_id, name), comment);
                 }
                 _ => {}

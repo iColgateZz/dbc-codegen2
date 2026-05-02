@@ -2,10 +2,10 @@ use crate::ir::identifier::Identifier;
 use crate::ir::map_into;
 use crate::ir::signal_layout::SignalLayoutIdx;
 use crate::ir::signal_value_type::IntReprType;
+use crate::ir::signal_value_type::{PhysicalType, RawType};
+use crate::ir::{ExtendedValueType, SignalValueEnumIdx};
 use can_dbc::MultiplexIndicator as ParsedMultiplexIndicator;
 use can_dbc::Signal as ParsedSignal;
-use crate::ir::signal_value_type::{PhysicalType, RawType};
-use crate::ir::{SignalValueEnumIdx, ExtendedValueType};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SignalIdx(pub usize);

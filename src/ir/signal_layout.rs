@@ -1,6 +1,6 @@
 use can_dbc::ByteOrder as ParsedByteOrder;
-use can_dbc::ValueType as ParsedValueType;
 use can_dbc::Signal as ParsedSignal;
+use can_dbc::ValueType as ParsedValueType;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SignalLayoutIdx(pub usize);

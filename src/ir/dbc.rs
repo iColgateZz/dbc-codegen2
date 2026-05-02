@@ -1,4 +1,7 @@
-use crate::ir::{Message, Node, Signal, SignalLayout, message_layout::MessageLayout, signal_value_enum::SignalValueEnum};
+use crate::ir::{
+    Message, Node, Signal, SignalLayout, message_layout::MessageLayout,
+    signal_value_enum::SignalValueEnum,
+};
 
 #[derive(Debug, Default)]
 pub struct DbcFile {
@@ -15,7 +18,7 @@ pub struct DbcFile {
     //TODO: attribute defaults, definitions, values signal and values
     //      message may be used as metadata in generated code
 
-    //TODO: consider how to use can_dbc::signal_types and 
+    //TODO: consider how to use can_dbc::signal_types and
     //      signal_type_refs. original dbc-codegen does not
     //      support them. They allow to define a signal once
     //      and then reuse them later.

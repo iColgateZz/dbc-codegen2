@@ -1,12 +1,8 @@
 use can_dbc::Dbc as ParsedDbc;
 use clap::{Parser, Subcommand};
 use dbc_codegen2::{
-    DbcFile,
-    app::App,
-    codegen::config::CodegenConfig,
-    codegen::config::RustCodeInjectionPoint,
-    ir::IRBuilder,
-    utils::Language,
+    DbcFile, app::App, codegen::config::CodegenConfig, codegen::config::RustCodeInjectionPoint,
+    ir::IRBuilder, utils::Language,
 };
 use std::{
     collections::HashMap,
@@ -110,7 +106,7 @@ fn main() {
                 no_enum_dedup,
                 zero_zero_range_allows_all,
                 rust_code_injections: HashMap::new(),
-                generate_tests, 
+                generate_tests,
             };
 
             // config.add_rust_code_injection(

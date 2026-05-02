@@ -38,10 +38,10 @@ impl Generator {
         self.push_indent();
         self.buffer.push_str("};\n");
     }
-    
+
     pub fn end_block_no_close(&mut self, text: &str) {
         self.indent_level = self.indent_level.saturating_sub(1);
-        
+
         if !text.is_empty() {
             self.push_indent();
             self.buffer.push_str(text);

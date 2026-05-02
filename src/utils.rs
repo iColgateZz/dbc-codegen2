@@ -7,7 +7,7 @@ impl Language {
     pub fn file_extension(&self) -> &'static str {
         match self {
             Language::Rust => "rs",
-            Language::Cpp  => "hpp",
+            Language::Cpp => "hpp",
         }
     }
 }

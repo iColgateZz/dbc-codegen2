@@ -9,7 +9,7 @@ impl CheckNode for CheckEnumVariants {
         for signal in &file.signals {
             if let Some(idx) = signal.signal_value_enum_idx {
                 let sve = &file.signal_value_enums[idx.0];
-                
+
                 if sve.variants.is_empty() {
                     diagnostics.error(format!(
                         "Enum '{}' used by signal '{}' is empty",

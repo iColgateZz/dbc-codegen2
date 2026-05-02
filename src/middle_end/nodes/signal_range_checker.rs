@@ -19,10 +19,7 @@ impl CheckNode for CheckSignalPhysicalRangeRepresentable {
 
                 //TODO: checking does not make much sense when range is [0|0].
                 //      use inferred type bounds instead?
-                if self.zero_zero_range_allows_all
-                    && layout.min == 0.0
-                    && layout.max == 0.0
-                {
+                if self.zero_zero_range_allows_all && layout.min == 0.0 && layout.max == 0.0 {
                     continue;
                 }
 
@@ -33,12 +30,7 @@ impl CheckNode for CheckSignalPhysicalRangeRepresentable {
                     continue;
                 };
 
-                let eps = range_epsilon([
-                    scaled_min,
-                    scaled_max,
-                    layout.min,
-                    layout.max,
-                ]);
+                let eps = range_epsilon([scaled_min, scaled_max, layout.min, layout.max]);
 
                 if layout.min < scaled_min - eps || layout.max > scaled_max + eps {
                     diagnostics.error(format!(
@@ -62,10 +54,7 @@ impl CheckNode for CheckSignalPhysicalRangeRepresentable {
     }
 }
 
-fn scaled_raw_range(
-    layout: &SignalLayout,
-    extended_type: ExtendedValueType,
-) -> Option<(f64, f64)> {
+fn scaled_raw_range(layout: &SignalLayout, extended_type: ExtendedValueType) -> Option<(f64, f64)> {
     if layout.size == 0 {
         return None;
     }
@@ -91,9 +80,7 @@ fn integer_raw_range(layout: &SignalLayout) -> Option<(f64, f64)> {
             let magnitude = pow2(size.checked_sub(1)?)?;
             Some((-magnitude, magnitude - 1.0))
         }
-        ValueType::Unsigned => {
-            Some((0.0, pow2(size)? - 1.0))
-        }
+        ValueType::Unsigned => Some((0.0, pow2(size)? - 1.0)),
     }
 }
 
@@ -106,10 +93,7 @@ fn pow2(bits: u64) -> Option<f64> {
 }
 
 fn range_epsilon(values: impl IntoIterator<Item = f64>) -> f64 {
-    let magnitude = values
-        .into_iter()
-        .map(f64::abs)
-        .fold(1.0, f64::max);
+    let magnitude = values.into_iter().map(f64::abs).fold(1.0, f64::max);
 
     magnitude * 1e-9
 }

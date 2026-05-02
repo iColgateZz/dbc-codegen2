@@ -29,8 +29,7 @@ impl CheckNode for CheckUnsupportedMultiplexing {
                         multiplexors.push(sig.name.raw());
                     }
 
-                    MultiplexIndicator::Plain
-                    | MultiplexIndicator::MultiplexedSignal(_) => {}
+                    MultiplexIndicator::Plain | MultiplexIndicator::MultiplexedSignal(_) => {}
                 }
             }
 
@@ -45,11 +44,11 @@ impl CheckNode for CheckUnsupportedMultiplexing {
                         .join(", "),
                 ));
             }
-
         }
 
         if file.has_extended_mux_symbols {
-            diagnostics.error("File contains extended multiplex symbols. This feature is not supported.");
+            diagnostics
+                .error("File contains extended multiplex symbols. This feature is not supported.");
         }
     }
 }

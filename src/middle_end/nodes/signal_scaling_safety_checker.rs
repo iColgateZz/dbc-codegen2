@@ -1,7 +1,7 @@
 use crate::{
     ir::{
-        signal_value_type::{IntReprType, PhysicalType, RawType},
         signal_layout::{SignalLayout, ValueType},
+        signal_value_type::{IntReprType, PhysicalType, RawType},
     },
     middle_end::nodes::{CheckNode, Diagnostics},
 };

@@ -8,7 +8,9 @@ use crate::ir::message::{Message, MessageId};
 use crate::ir::signal::{MultiplexIndicator, Receiver, Signal};
 use crate::ir::signal_layout::{ByteOrder, SignalLayout};
 use crate::ir::signal_value_enum::SignalValueEnum;
-use crate::ir::signal_value_type::{IntReprType, PhysicalType, RawType, RustFloatLiteral, RustIntegerLiteral, RustType};
+use crate::ir::signal_value_type::{
+    IntReprType, PhysicalType, RawType, RustFloatLiteral, RustIntegerLiteral, RustType,
+};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
@@ -49,7 +51,7 @@ impl RustGen {
             enum_def: e,
             config,
         });
-                let error_enum = ErrorEnum { config };
+        let error_enum = ErrorEnum { config };
         let msg_trait = MsgTrait;
         let msg_enum = MsgEnum { messages, config };
         let message_defs: Vec<_> = messages
@@ -61,7 +63,9 @@ impl RustGen {
             })
             .collect();
 
-        let tests = config.generate_tests.then_some(RustTestModule { file, config });
+        let tests = config
+            .generate_tests
+            .then_some(RustTestModule { file, config });
 
         let tokens = quote! {
             #imports
@@ -90,10 +94,7 @@ struct ErrorEnum<'a> {
 
 impl ToTokens for ErrorEnum<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let injected = rust_code_injection_tokens(
-            self.config,
-            RustCodeInjectionPoint::ErrorEnum,
-        );
+        let injected = rust_code_injection_tokens(self.config, RustCodeInjectionPoint::ErrorEnum);
 
         quote! {
             #injected
@@ -132,10 +133,7 @@ struct MsgEnum<'a> {
 
 impl ToTokens for MsgEnum<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let injected = rust_code_injection_tokens(
-            self.config,
-            RustCodeInjectionPoint::MessageEnum,
-        );
+        let injected = rust_code_injection_tokens(self.config, RustCodeInjectionPoint::MessageEnum);
 
         let variants = self.messages.iter().map(|msg| {
             let variant_name = format_ident!("{}", msg.name.upper_camel_with_numeric_postfix());
@@ -215,7 +213,7 @@ impl ToTokens for MessageDef<'_> {
         if muxed.is_empty() {
             self.generate_plain(tokens, &signals);
         } else {
-            self.generate_mux(tokens,  plain, muxed, mux_signal.unwrap());
+            self.generate_mux(tokens, plain, muxed, mux_signal.unwrap());
         }
     }
 }
@@ -247,10 +245,8 @@ impl MessageDef<'_> {
         let setters = Self::gen_setters(&signals);
 
         let doc = message_doc(&msg);
-        let injected = rust_code_injection_tokens(
-            self.config,
-            RustCodeInjectionPoint::MessageStruct,
-        );
+        let injected =
+            rust_code_injection_tokens(self.config, RustCodeInjectionPoint::MessageStruct);
         let can_msg_impl = Self::gen_can_message_impl(&name);
 
         quote! {
@@ -359,10 +355,8 @@ impl MessageDef<'_> {
             let constructor_params = Self::gen_constructor_params(sigs);
             let constructor_body = Self::gen_constructor_body(sigs);
 
-            let injected = rust_code_injection_tokens(
-                self.config,
-                RustCodeInjectionPoint::MuxVariantStruct,
-            );
+            let injected =
+                rust_code_injection_tokens(self.config, RustCodeInjectionPoint::MuxVariantStruct);
 
             quote! {
                 #injected
@@ -464,15 +458,11 @@ impl MessageDef<'_> {
         let plain_getters = Self::gen_getters(&plain);
         let plain_setters = Self::gen_setters(&plain);
 
-        let mux_enum_injected = rust_code_injection_tokens(
-            self.config,
-            RustCodeInjectionPoint::MuxEnum,
-        );
+        let mux_enum_injected =
+            rust_code_injection_tokens(self.config, RustCodeInjectionPoint::MuxEnum);
 
-        let message_struct_injected = rust_code_injection_tokens(
-            self.config,
-            RustCodeInjectionPoint::MessageStruct,
-        );
+        let message_struct_injected =
+            rust_code_injection_tokens(self.config, RustCodeInjectionPoint::MessageStruct);
 
         let can_msg_impl = Self::gen_can_message_impl(&name);
 
@@ -620,10 +610,8 @@ impl<'a> SignalValueEnumCtx<'a> {
         let variants = Self::gen_enum_variants(sve);
         let from_arms = self.gen_from_arms(sve);
         let into_arms = self.gen_into_arms(sve);
-        let injected = rust_code_injection_tokens(
-            self.config,
-            RustCodeInjectionPoint::SignalValueEnum,
-        );
+        let injected =
+            rust_code_injection_tokens(self.config, RustCodeInjectionPoint::SignalValueEnum);
 
         quote! {
             #injected
@@ -662,10 +650,8 @@ impl<'a> SignalValueEnumCtx<'a> {
         let variants = Self::gen_enum_variants(sve);
         let from_arms = self.gen_from_arms(sve);
         let into_arms = self.gen_into_arms(sve);
-        let injected = rust_code_injection_tokens(
-            self.config,
-            RustCodeInjectionPoint::SignalValueEnum,
-        );
+        let injected =
+            rust_code_injection_tokens(self.config, RustCodeInjectionPoint::SignalValueEnum);
 
         quote! {
             #injected
@@ -786,7 +772,7 @@ impl<'a> SignalCtx<'a> {
             IntReprType::I16 | IntReprType::U16 => "u16",
             IntReprType::I32 | IntReprType::U32 => "u32",
             IntReprType::I64 | IntReprType::U64 => "u64",
-            _ => unreachable!("It should never assign 128 bit type")
+            _ => unreachable!("It should never assign 128 bit type"),
         };
 
         format_ident!("{}", ty)
@@ -1004,10 +990,10 @@ impl<'a> SignalCtx<'a> {
         };
 
         quote! {
-            let raw_value = #raw_value_expr;
-            let storage_value = #storage_value;
-            self.data.view_bits_mut::<#order>()[#start..#end].#store(storage_value);
-         }
+           let raw_value = #raw_value_expr;
+           let storage_value = #storage_value;
+           self.data.view_bits_mut::<#order>()[#start..#end].#store(storage_value);
+        }
     }
 }
 
@@ -1017,7 +1003,7 @@ fn message_doc(msg: &Message) -> TokenStream {
     let id_text = match msg.id {
         MessageId::Standard(id) => {
             format!("Standard {} (0x{:X})", id, id)
-        },
+        }
         MessageId::Extended(id) => {
             format!("Extended {} (0x{:X})", id, id)
         }
@@ -1026,7 +1012,7 @@ fn message_doc(msg: &Message) -> TokenStream {
     let size = msg.size;
     let transmitter = match &msg.transmitter {
         crate::ir::message::Transmitter::Node(name) => name.raw(),
-        crate::ir::message::Transmitter::VectorXXX => "VectorXXX"
+        crate::ir::message::Transmitter::VectorXXX => "VectorXXX",
     };
 
     let mut lines = vec![
@@ -1058,13 +1044,13 @@ fn getter_doc(sig: &SignalCtx) -> TokenStream {
         "".into()
     } else {
         s.receivers
-        .iter()
-        .map(|r| match r {
-            Receiver::Node(id) => id.raw().to_string(),
-            Receiver::VectorXXX => "VectorXXX".to_string(),
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
+            .iter()
+            .map(|r| match r {
+                Receiver::Node(id) => id.raw().to_string(),
+                Receiver::VectorXXX => "VectorXXX".to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
     };
 
     let (start, _) = sig.start_end_bit();
@@ -1119,7 +1105,7 @@ fn setter_doc(sig: &SignalCtx) -> TokenStream {
         format!("- Min: {}", min),
         format!("- Max: {}", max),
     ];
-    
+
     if let Some(comment) = &s.comment {
         lines.push("".into());
         lines.extend(comment.lines().map(|l| l.to_string()));
@@ -1170,12 +1156,7 @@ impl ToTokens for RustTestModule<'_> {
                 }
                 .to_token_stream()
             } else {
-                MultiplexedMessageTest {
-                    msg,
-                    plain,
-                    muxed,
-                }
-                .to_token_stream()
+                MultiplexedMessageTest { msg, plain, muxed }.to_token_stream()
             }
         });
 
@@ -1229,9 +1210,10 @@ impl ToTokens for PlainMessageTest<'_> {
             s.test_value_statement(&var, format_ident!("u"))
         });
 
-        let constructor_args = self.signals.iter().map(|s| {
-            format_ident!("{}_value", s.signal.name.snake_case())
-        });
+        let constructor_args = self
+            .signals
+            .iter()
+            .map(|s| format_ident!("{}_value", s.signal.name.snake_case()));
 
         let first_getter_assertions = self.signals.iter().map(|s| {
             let expected = format_ident!("{}_value", s.signal.name.snake_case());
@@ -1278,7 +1260,6 @@ impl ToTokens for PlainMessageTest<'_> {
     }
 }
 
-
 struct MultiplexedMessageTest<'a> {
     msg: &'a Message,
     plain: Vec<SignalCtx<'a>>,
@@ -1291,38 +1272,60 @@ impl ToTokens for MultiplexedMessageTest<'_> {
         let mux_enum_name = format_ident!("{}Mux", msg_name);
         let test_name = format_ident!("test_{}", self.msg.name.snake_case());
 
-        let plain_first_values: Vec<_> = self.plain.iter().map(|s| {
-            let var = format_ident!("{}_value", s.signal.name.snake_case());
-            s.test_value_statement(&var, format_ident!("u"))
-        }).collect();
+        let plain_first_values: Vec<_> = self
+            .plain
+            .iter()
+            .map(|s| {
+                let var = format_ident!("{}_value", s.signal.name.snake_case());
+                s.test_value_statement(&var, format_ident!("u"))
+            })
+            .collect();
 
-        let plain_second_values: Vec<_> = self.plain.iter().map(|s| {
-            let var = format_ident!("{}_next_value", s.signal.name.snake_case());
-            s.test_value_statement(&var, format_ident!("u"))
-        }).collect();
+        let plain_second_values: Vec<_> = self
+            .plain
+            .iter()
+            .map(|s| {
+                let var = format_ident!("{}_next_value", s.signal.name.snake_case());
+                s.test_value_statement(&var, format_ident!("u"))
+            })
+            .collect();
 
-        let plain_constructor_args: Vec<_> = self.plain.iter().map(|s| {
-            format_ident!("{}_value", s.signal.name.snake_case())
-        }).collect();
+        let plain_constructor_args: Vec<_> = self
+            .plain
+            .iter()
+            .map(|s| format_ident!("{}_value", s.signal.name.snake_case()))
+            .collect();
 
-        let plain_first_getter_assertions: Vec<_> = self.plain.iter().map(|s| {
-            let expected = format_ident!("{}_value", s.signal.name.snake_case());
-            s.test_getter_assertion(&expected)
-        }).collect();
+        let plain_first_getter_assertions: Vec<_> = self
+            .plain
+            .iter()
+            .map(|s| {
+                let expected = format_ident!("{}_value", s.signal.name.snake_case());
+                s.test_getter_assertion(&expected)
+            })
+            .collect();
 
-        let plain_setter_calls: Vec<_> = self.plain.iter().map(|s| {
-            let setter = s.setter_ident();
-            let value = format_ident!("{}_next_value", s.signal.name.snake_case());
+        let plain_setter_calls: Vec<_> = self
+            .plain
+            .iter()
+            .map(|s| {
+                let setter = s.setter_ident();
+                let value = format_ident!("{}_next_value", s.signal.name.snake_case());
 
-            quote! {
-                msg.#setter(#value).expect("plain setter should accept generated test value");
-            }
-        }).collect();
+                quote! {
+                    msg.#setter(#value).expect("plain setter should accept generated test value");
+                }
+            })
+            .collect();
 
-        let plain_second_getter_assertions: Vec<_> = self.plain.iter().map(|s| {
-            let expected = format_ident!("{}_next_value", s.signal.name.snake_case());
-            s.test_getter_assertion(&expected)
-        }).collect();
+        let plain_second_getter_assertions: Vec<_> = self
+            .plain
+            .iter()
+            .map(|s| {
+                let expected = format_ident!("{}_next_value", s.signal.name.snake_case());
+                s.test_getter_assertion(&expected)
+            })
+            .collect();
 
         let mux_entries: Vec<_> = self.muxed.iter().collect();
 
@@ -1495,8 +1498,7 @@ impl ToTokens for MultiplexedMessageTest<'_> {
     }
 }
 
-
-impl <'a> SignalCtx<'a> {
+impl<'a> SignalCtx<'a> {
     fn test_value_statement(&self, var: &Ident, arbitrary: Ident) -> TokenStream {
         if self.is_enum() {
             let enum_name = self.enum_ident();
@@ -1552,7 +1554,7 @@ impl <'a> SignalCtx<'a> {
                     x = x.min(#max);
                     x.max(#min)
                 };
-            }
+            };
         }
 
         quote! {

@@ -5,8 +5,8 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 
-use dbc_codegen2::{app::App, codegen::config::CodegenConfig};
 use dbc_codegen2::utils::Language;
+use dbc_codegen2::{app::App, codegen::config::CodegenConfig};
 
 struct GeneratedFileGuard {
     path: PathBuf,
@@ -112,8 +112,8 @@ fn _cargo_test_data_crate() -> Result<()> {
 
 #[test]
 fn test_all_dbc_files() -> Result<()> {
-    let _guard = GeneratedFileGuard::new(GENERATED_FILE.into())
-        .context("Failed to create file guard")?;
+    let _guard =
+        GeneratedFileGuard::new(GENERATED_FILE.into()).context("Failed to create file guard")?;
 
     let files = _dbc_files();
     println!("Running {} tests", files.len());
@@ -125,14 +125,12 @@ fn test_all_dbc_files() -> Result<()> {
 
         let result = std::panic::catch_unwind(|| {
             (|| -> Result<()> {
-                _run_codegen(&file)
-                    .with_context(|| format!("Codegen failed for {:?}", file))?;
+                _run_codegen(&file).with_context(|| format!("Codegen failed for {:?}", file))?;
 
                 _cargo_check_data_crate()
                     .with_context(|| format!("Compilation failed for {:?}", file))?;
 
-                _cargo_test_data_crate()
-                    .with_context(|| format!("Test failed for {:?}", file))?;
+                _cargo_test_data_crate().with_context(|| format!("Test failed for {:?}", file))?;
 
                 Ok(())
             })()

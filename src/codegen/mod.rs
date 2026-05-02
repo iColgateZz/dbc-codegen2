@@ -1,6 +1,6 @@
-pub mod rust;
+pub mod config;
 pub mod cpp;
 pub mod generator;
-pub mod config;
+pub mod rust;
 
 pub use generator::*;
