@@ -64,6 +64,9 @@ pub enum Command {
         /// Generate tests for messages
         #[arg(long = "test", default_value = "false")]
         generate_tests: bool,
+        /// [C++ only] Generate messages into separate files (.hpp)
+        #[arg(long, default_value = "false")]
+        separate: bool,
     },
 }
 
@@ -94,6 +97,7 @@ fn main() {
             no_enum_dedup,
             zero_zero_range_allows_all,
             generate_tests,
+            separate,
         } => {
             let mut config = CodegenConfig {
                 inputs,
@@ -105,6 +109,7 @@ fn main() {
                 rust_code_injections: HashMap::new(),
                 cpp_code_injections: HashMap::new(),
                 generate_tests,
+                separate,
             };
 
             config.add_rust_code_injection(

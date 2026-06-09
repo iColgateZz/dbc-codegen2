@@ -41,6 +41,7 @@ pub struct CodegenConfig {
     pub rust_code_injections: HashMap<RustCodeInjectionPoint, Vec<String>>,
     pub cpp_code_injections: HashMap<CppCodeInjectionPoint, Vec<String>>,
     pub generate_tests: bool,
+    pub separate: bool,
 }
 
 impl CodegenConfig {

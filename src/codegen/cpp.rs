@@ -20,6 +20,11 @@ use crate::codegen::config::{CodegenConfig, CppCodeInjectionPoint};
 
 pub struct CppGen;
 
+pub struct GeneratedCppFile {
+    pub file_name: String,
+    pub contents: String,
+}
+
 fn cpp_code_injections(out: &mut Generator, config: &CodegenConfig, point: CppCodeInjectionPoint) {
     if let Some(injections) = config.cpp_code_injections.get(&point) {
         for injection in injections {
@@ -37,26 +42,7 @@ impl CppGen {
         line!(out, "#pragma once");
         empty!(out);
 
-        Self::includes(&mut out, config.generate_tests);
-        cpp_code_injections(&mut out, config, CppCodeInjectionPoint::Header);
-        Self::errors(&mut out, config);
-        Self::can_id(&mut out);
-        Self::message_interface(&mut out);
-        Self::endian_read_and_write(&mut out);
-
-        let mut emitted_enum_idxs = std::collections::BTreeSet::new();
-        for signal in &file.signals {
-            if let Some(idx) = signal.signal_value_enum_idx {
-                if emitted_enum_idxs.insert(idx.0) {
-                    Self::signal_value_enum(
-                        &mut out,
-                        signal,
-                        &file.signal_value_enums[idx.0],
-                        config,
-                    );
-                }
-            }
-        }
+        Self::common_declarations(&mut out, file, config);
 
         for message in &file.messages {
             Self::message(&mut out, message, file, config);
@@ -69,6 +55,129 @@ impl CppGen {
         cpp_code_injections(&mut out, config, CppCodeInjectionPoint::Footer);
 
         out.into_string()
+    }
+
+    pub fn generate_separate(
+        file: &DbcFile,
+        config: &CodegenConfig,
+        output_stem: &str,
+    ) -> Vec<GeneratedCppFile> {
+        let common_file_name = format!("{}_common.hpp", output_stem);
+        let aggregate_file_name = format!("{}.hpp", output_stem);
+        let message_file_names = file
+            .messages
+            .iter()
+            .map(|message| Self::message_file_name(output_stem, message))
+            .collect::<Vec<_>>();
+
+        let mut files = Vec::with_capacity(file.messages.len() + 2);
+        files.push(GeneratedCppFile {
+            file_name: common_file_name.clone(),
+            contents: Self::generate_common_header(file, config),
+        });
+
+        for (message, file_name) in file.messages.iter().zip(&message_file_names) {
+            files.push(GeneratedCppFile {
+                file_name: file_name.clone(),
+                contents: Self::generate_message_header(message, file, config, &common_file_name),
+            });
+        }
+
+        files.push(GeneratedCppFile {
+            file_name: aggregate_file_name,
+            contents: Self::generate_aggregate_header(
+                file,
+                config,
+                &common_file_name,
+                &message_file_names,
+            ),
+        });
+
+        files
+    }
+
+    fn message_file_name(output_stem: &str, message: &Message) -> String {
+        format!(
+            "{}_{}.hpp",
+            output_stem,
+            message.name.upper_camel().to_snake_case()
+        )
+    }
+
+    fn include_local(out: &mut Generator, file_name: &str) {
+        line!(out, "#include \"{}\"", file_name);
+    }
+
+    fn generate_common_header(file: &DbcFile, config: &CodegenConfig) -> String {
+        let mut out = Generator::new();
+
+        line!(out, "#pragma once");
+        empty!(out);
+
+        Self::common_declarations(&mut out, file, config);
+
+        out.into_string()
+    }
+
+    fn generate_message_header(
+        message: &Message,
+        file: &DbcFile,
+        config: &CodegenConfig,
+        common_file_name: &str,
+    ) -> String {
+        let mut out = Generator::new();
+
+        line!(out, "#pragma once");
+        empty!(out);
+        Self::include_local(&mut out, common_file_name);
+        empty!(out);
+
+        Self::message(&mut out, message, file, config);
+
+        out.into_string()
+    }
+
+    fn generate_aggregate_header(
+        file: &DbcFile,
+        config: &CodegenConfig,
+        common_file_name: &str,
+        message_file_names: &[String],
+    ) -> String {
+        let mut out = Generator::new();
+
+        line!(out, "#pragma once");
+        empty!(out);
+        Self::include_local(&mut out, common_file_name);
+        for file_name in message_file_names {
+            Self::include_local(&mut out, file_name);
+        }
+        empty!(out);
+
+        Self::parse_can(&mut out, &file.messages, config);
+        if config.generate_tests {
+            Self::test_module(&mut out, file, config);
+        }
+        cpp_code_injections(&mut out, config, CppCodeInjectionPoint::Footer);
+
+        out.into_string()
+    }
+
+    fn common_declarations(out: &mut Generator, file: &DbcFile, config: &CodegenConfig) {
+        Self::includes(out, config.generate_tests);
+        cpp_code_injections(out, config, CppCodeInjectionPoint::Header);
+        Self::errors(out, config);
+        Self::can_id(out);
+        Self::message_interface(out);
+        Self::endian_read_and_write(out);
+
+        let mut emitted_enum_idxs = BTreeSet::new();
+        for signal in &file.signals {
+            if let Some(idx) = signal.signal_value_enum_idx {
+                if emitted_enum_idxs.insert(idx.0) {
+                    Self::signal_value_enum(out, signal, &file.signal_value_enums[idx.0], config);
+                }
+            }
+        }
     }
 
     fn cpp_uint_repr_for_float(raw_type: &RawType) -> &'static str {

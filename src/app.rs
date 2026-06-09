@@ -21,6 +21,7 @@ use crate::{
     },
 };
 use anyhow::Context;
+use std::path::Path;
 
 pub struct CodegenPipeline;
 
@@ -88,14 +89,33 @@ impl CodegenPipeline {
             .add(SanitizeSignalNames)
             .run(&mut dbc);
 
-        let code = match config.lang {
-            Language::Rust => codegen::rust::RustGen::generate(&dbc, &config),
-            Language::Cpp => codegen::cpp::CppGen::generate(&dbc, &config),
-        };
+        match &config.lang {
+            Language::Rust => {
+                let code = codegen::rust::RustGen::generate(&dbc, &config);
+                let out =
+                    PathBuf::from(&config.output).with_extension(config.lang.file_extension());
+                std::fs::write(out, code)?;
+            }
+            Language::Cpp if config.separate => {
+                let out =
+                    PathBuf::from(&config.output).with_extension(config.lang.file_extension());
+                let parent = out.parent().unwrap_or_else(|| Path::new("."));
+                let stem = out
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .context("C++ output path must have a valid UTF-8 file stem")?;
 
-        let ext = config.lang.file_extension();
-        let out = PathBuf::from(config.output).with_extension(ext);
-        std::fs::write(out, code)?;
+                for generated in codegen::cpp::CppGen::generate_separate(&dbc, &config, stem) {
+                    std::fs::write(parent.join(generated.file_name), generated.contents)?;
+                }
+            }
+            Language::Cpp => {
+                let code = codegen::cpp::CppGen::generate(&dbc, &config);
+                let out =
+                    PathBuf::from(&config.output).with_extension(config.lang.file_extension());
+                std::fs::write(out, code)?;
+            }
+        }
 
         Ok(())
     }
