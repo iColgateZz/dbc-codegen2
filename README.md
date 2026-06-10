@@ -13,6 +13,7 @@ The generator currently supports:
 - simple multiplexed messages with one multiplexor signal per message
 - enum generation from DBC value descriptions
 - generating tests for generated Rust code
+- separate per-message C++ headers
 - Rust code injection at selected locations
 
 Unsupported DBC features currently include:
@@ -105,6 +106,7 @@ Arguments and options:
 | `--no-enum-dedup` | Disable signal value enum deduplication. By default, equal enums are shared. | false |
 | `--zero-zero-range-allows-all` | Treat DBC physical ranges written as `[0\|0]` as unconstrained. | false |
 | `--test` | Generate message tests. Rust output emits `#[cfg(test)]` tests; C++ output emits a `generated_tests::run_all()` harness. | false |
+| `--separate` | For C++ output, generate a shared common header, one header per message, and an aggregate header. Rust output is unchanged. | false |
 
 Examples:
 
@@ -130,6 +132,12 @@ Generate C++ with generated tests:
 
 ```bash
 dbc-codegen2 gen vehicle.dbc -o include/generated_can --lang cpp --test
+```
+
+Generate C++ with one header per message:
+
+```bash
+dbc-codegen2 gen vehicle.dbc -o include/generated_can --lang cpp --separate
 ```
 
 Generate Rust while rejecting unknown enum values:
@@ -163,6 +171,7 @@ fn main() -> anyhow::Result<()> {
         rust_code_injections: HashMap::new(),
         cpp_code_injections: HashMap::new(),
         generate_tests: true,
+        separate: false,
     };
 
     CodegenPipeline::run(config)
@@ -203,6 +212,7 @@ fn main() -> anyhow::Result<()> {
         rust_code_injections: HashMap::new(),
         cpp_code_injections: HashMap::new(),
         generate_tests: false,
+        separate: false,
     };
 
     config.add_rust_code_injection(
@@ -257,6 +267,7 @@ fn main() -> anyhow::Result<()> {
         rust_code_injections: HashMap::new(),
         cpp_code_injections: HashMap::new(),
         generate_tests: false,
+        separate: false,
     };
 
     config.add_cpp_code_injection(
