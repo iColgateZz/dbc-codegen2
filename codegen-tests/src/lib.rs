@@ -68,7 +68,7 @@ mod tests {
         file.starts_with(Path::new(DBC_DIR).join("currently-work"))
     }
 
-    fn generate(input: &Path, output: &str, lang: Language) -> Result<()> {
+    fn generate(input: &Path, output: &str, lang: Language, separate: bool) -> Result<()> {
         let mut config = CodegenConfig {
             inputs: vec![
                 input
@@ -84,11 +84,12 @@ mod tests {
             rust_code_injections: HashMap::new(),
             cpp_code_injections: HashMap::new(),
             generate_tests: true,
+            separate,
         };
 
         config.add_rust_code_injection(
-                dbc_codegen2::RustCodeInjectionPoint::Getter,
-                "#[inline(always)]",
+            dbc_codegen2::RustCodeInjectionPoint::Getter,
+            "#[inline(always)]",
         );
 
         config.add_rust_code_injection(
@@ -118,7 +119,7 @@ mod tests {
     }
 
     fn rust_fixture(file: &Path) -> Result<()> {
-        generate(file, GENERATED_RUST_FILE, Language::Rust)
+        generate(file, GENERATED_RUST_FILE, Language::Rust, false)
             .with_context(|| format!("Codegen failed for {:?}", file))?;
 
         let mut check = Command::new("cargo");
@@ -141,7 +142,7 @@ mod tests {
     }
 
     fn cpp_fixture(file: &Path, runner: &Path, binary: &Path) -> Result<()> {
-        generate(file, GENERATED_CPP_FILE, Language::Cpp)
+        generate(file, GENERATED_CPP_FILE, Language::Cpp, false)
             .with_context(|| format!("Codegen failed for {:?}", file))?;
 
         let compiler = env::var("CXX").unwrap_or_else(|_| "c++".to_string());
@@ -151,6 +152,101 @@ mod tests {
             .arg("-std=c++23")
             .arg("-I")
             .arg(include_dir)
+            .arg(runner)
+            .arg("-o")
+            .arg(binary);
+        run_quiet(&mut compile, &compiler)
+            .with_context(|| format!("Compilation failed for {:?}", file))?;
+
+        let mut run = Command::new(binary);
+        run_quiet(&mut run, "generated C++ tests")
+            .with_context(|| format!("Test failed for {:?}", file))
+    }
+
+    fn cpp_separate_fixture(
+        file: &Path,
+        output: &Path,
+        runner: &Path,
+        binary: &Path,
+    ) -> Result<()> {
+        generate(
+            file,
+            output.to_str().context("invalid UTF-8 in output path")?,
+            Language::Cpp,
+            true,
+        )
+        .with_context(|| format!("Codegen failed for {:?}", file))?;
+
+        let output_dir = output.parent().unwrap();
+        let output_stem = output
+            .file_name()
+            .and_then(|stem| stem.to_str())
+            .context("invalid UTF-8 in output file name")?;
+        let expected_message_headers = [
+            ("driver_heartbeat_msg", "DriverHeartbeatMsg"),
+            ("io_debug_msg", "IoDebugMsg"),
+            ("motor_cmd_msg", "MotorCmdMsg"),
+            ("motor_status_msg", "MotorStatusMsg"),
+            ("sensor_sonars_msg", "SensorSonarsMsg"),
+        ];
+        let expected_header_count = expected_message_headers.len() + 2;
+        let mut split_headers = fs::read_dir(output_dir)?
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("hpp"))
+            .collect::<Vec<_>>();
+        split_headers.sort();
+        anyhow::ensure!(
+            split_headers.len() == expected_header_count,
+            "expected {} generated C++ headers, got {}: {:?}",
+            expected_header_count,
+            split_headers.len(),
+            split_headers
+        );
+
+        let aggregate_header = output.with_extension("hpp");
+        let common_header = output.with_file_name(format!("{}_common.hpp", output_stem));
+        anyhow::ensure!(
+            aggregate_header.exists(),
+            "missing aggregate header {:?}",
+            aggregate_header
+        );
+        anyhow::ensure!(
+            common_header.exists(),
+            "missing common header {:?}",
+            common_header
+        );
+
+        let aggregate_contents = fs::read_to_string(&aggregate_header)?;
+        anyhow::ensure!(
+            aggregate_contents.contains(&format!("#include \"{}_common.hpp\"", output_stem)),
+            "aggregate header should include the common header"
+        );
+
+        for (message_file_suffix, class_name) in expected_message_headers {
+            let header_name = format!("{}_{}.hpp", output_stem, message_file_suffix);
+            let header = output.with_file_name(&header_name);
+            anyhow::ensure!(header.exists(), "missing message header {:?}", header);
+
+            let contents = fs::read_to_string(&header)?;
+            anyhow::ensure!(
+                contents.contains(&format!("class {}", class_name)),
+                "{:?} should contain class {}",
+                header,
+                class_name
+            );
+            anyhow::ensure!(
+                aggregate_contents.contains(&format!("#include \"{}\"", header_name)),
+                "aggregate header should include {}",
+                header_name
+            );
+        }
+
+        let compiler = env::var("CXX").unwrap_or_else(|_| "c++".to_string());
+        let mut compile = Command::new(&compiler);
+        compile
+            .arg("-std=c++23")
+            .arg("-I")
+            .arg(output_dir)
             .arg(runner)
             .arg("-o")
             .arg(binary);
@@ -210,5 +306,16 @@ mod tests {
         run_fixtures(GENERATED_CPP_FILE, |file| {
             cpp_fixture(file, &runner, &binary)
         })
+    }
+
+    #[test]
+    fn test_cpp_separate_generation() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let runner = write_cpp_runner(temp_dir.path())?;
+        let binary = temp_dir.path().join("generated_tests");
+        let output = temp_dir.path().join("generated");
+        let input = Path::new(DBC_DIR).join("currently-work/example.dbc");
+
+        cpp_separate_fixture(&input, &output, &runner, &binary)
     }
 }

@@ -31,6 +31,7 @@ fn generate_snapshot_fixture(lang: Language) -> String {
         rust_code_injections: HashMap::new(),
         cpp_code_injections: HashMap::new(),
         generate_tests: false,
+        separate: false,
     };
 
     CodegenPipeline::run(config).expect("codegen should succeed for snapshot fixture");
