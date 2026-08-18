@@ -246,10 +246,10 @@ impl CppGen {
     fn signal_cpp_return_type(signal: &Signal, file: &DbcFile, config: &CodegenConfig) -> String {
         if let Some(idx) = signal.signal_value_enum_idx {
             let enum_name = file.signal_value_enums[idx.0].name.upper_camel();
-            if config.no_enum_other {
-                format!("std::expected<{}, CanError>", enum_name)
-            } else {
+            if config.enum_other {
                 enum_name
+            } else {
+                format!("std::expected<{}, CanError>", enum_name)
             }
         } else if Self::is_bool_signal(signal, file) {
             "bool".to_string()
@@ -773,7 +773,17 @@ impl CppGen {
         end_block!(out, "");
         empty!(out);
 
-        if config.no_enum_other {
+        if config.enum_other {
+            line!(out, "[[nodiscard]] constexpr {}", name);
+            start_block!(
+                out,
+                "{}_from_raw({} v) noexcept",
+                name.to_snake_case(),
+                cpp_type
+            );
+            line!(out, "return static_cast<{}>(v);", name);
+            end_block!(out, "");
+        } else {
             line!(
                 out,
                 "[[nodiscard]] constexpr std::expected<{}, CanError>",
@@ -799,16 +809,6 @@ impl CppGen {
                 out,
                 "default: return std::unexpected(CanError::InvalidEnumValue);"
             );
-            end_block!(out, "");
-        } else {
-            line!(out, "[[nodiscard]] constexpr {}", name);
-            start_block!(
-                out,
-                "{}_from_raw({} v) noexcept",
-                name.to_snake_case(),
-                cpp_type
-            );
-            line!(out, "return static_cast<{}>(v);", name);
             end_block!(out, "");
         }
         empty!(out);
@@ -1030,7 +1030,7 @@ impl CppGen {
         let min = layout.min;
         let max = layout.max;
 
-        if config.zero_zero_range_allows_all && min == max && min == 0.0 {
+        if config.allow_unrestricted_ranges && min == max && min == 0.0 {
             return;
         }
 
@@ -2018,7 +2018,7 @@ impl CppGen {
         file: &DbcFile,
         config: &CodegenConfig,
     ) {
-        if !config.no_enum_other {
+        if config.enum_other {
             return;
         }
 
@@ -2092,7 +2092,7 @@ impl CppGen {
         file: &DbcFile,
         config: &CodegenConfig,
     ) {
-        if !config.no_enum_other {
+        if config.enum_other {
             return;
         }
 
@@ -2294,7 +2294,7 @@ impl CppGen {
             let expected = Self::test_var(signal, expected_suffix);
             let call = format!("{}.{}()", receiver, field_name);
 
-            if signal.signal_value_enum_idx.is_some() && config.no_enum_other {
+            if signal.signal_value_enum_idx.is_some() && !config.enum_other {
                 let actual = format!(
                     "actual_{}_{}_{}",
                     Self::test_ident_fragment(receiver),
@@ -2520,12 +2520,12 @@ impl CppGen {
             return false;
         }
 
-        !(config.zero_zero_range_allows_all && layout.min == 0.0 && layout.max == 0.0)
+        !(config.allow_unrestricted_ranges && layout.min == 0.0 && layout.max == 0.0)
     }
 
     fn raw_float_test_value(layout: &SignalLayout, config: &CodegenConfig, ordinal: usize) -> f64 {
         let active_range_check =
-            !(config.zero_zero_range_allows_all && layout.min == 0.0 && layout.max == 0.0);
+            !(config.allow_unrestricted_ranges && layout.min == 0.0 && layout.max == 0.0);
 
         if active_range_check {
             match ordinal % 3 {

@@ -104,7 +104,7 @@ Arguments and options:
 | `-l, --lang` | Target language. Supported values: `rust`, `cpp`. | `rust` |
 | `--no-enum-other` | Do not generate the fallback `_Other(...)` variant for signal value enums. Unknown enum values then become errors. | false |
 | `--no-enum-dedup` | Disable signal value enum deduplication. By default, equal enums are shared. | false |
-| `--zero-zero-range-allows-all` | Treat DBC physical ranges written as `[0\|0]` as unconstrained. | false |
+| `--allow-unrestricted-ranges` | Treat DBC physical ranges written as `[0\|0]` as unconstrained. | false |
 | `--test` | Generate message tests. Rust output emits `#[cfg(test)]` tests; C++ output emits a `generated_tests::run_all()` harness. | false |
 | `--separate` | For C++ output, generate a shared common header, one header per message, and an aggregate header. Rust output is unchanged. | false |
 
@@ -165,9 +165,9 @@ fn main() -> anyhow::Result<()> {
         inputs: vec!["vehicle.dbc".to_string()],
         output: "src/generated_can".to_string(),
         lang: Language::Rust,
-        no_enum_other: false,
-        no_enum_dedup: false,
-        zero_zero_range_allows_all: false,
+        enum_other: true,
+        enum_dedup: true,
+        allow_unrestricted_ranges: false,
         rust_code_injections: HashMap::new(),
         cpp_code_injections: HashMap::new(),
         generate_tests: true,
@@ -206,9 +206,9 @@ fn main() -> anyhow::Result<()> {
         inputs: vec!["vehicle.dbc".to_string()],
         output: "src/generated_can".to_string(),
         lang: Language::Rust,
-        no_enum_other: false,
-        no_enum_dedup: false,
-        zero_zero_range_allows_all: false,
+        enum_other: true,
+        enum_dedup: true,
+        allow_unrestricted_ranges: false,
         rust_code_injections: HashMap::new(),
         cpp_code_injections: HashMap::new(),
         generate_tests: false,
@@ -261,9 +261,9 @@ fn main() -> anyhow::Result<()> {
         inputs: vec!["vehicle.dbc".to_string()],
         output: "include/generated_can.hpp".to_string(),
         lang: Language::Cpp,
-        no_enum_other: false,
-        no_enum_dedup: false,
-        zero_zero_range_allows_all: false,
+        enum_other: true,
+        enum_dedup: true,
+        allow_unrestricted_ranges: false,
         rust_code_injections: HashMap::new(),
         cpp_code_injections: HashMap::new(),
         generate_tests: false,
@@ -290,7 +290,7 @@ Before code generation, `dbc-codegen2` computes bit positions, signal usage info
 
 Current validation includes checks for:
 
-- `[0|0]` physical ranges, unless `--zero-zero-range-allows-all` is used
+- `[0|0]` physical ranges, unless `--allow-unrestricted-ranges` is used
 - duplicate message IDs
 - invalid signal layouts
 - overlapping message bits and unused bits
