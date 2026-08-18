@@ -9,6 +9,7 @@ pub struct Identifier {
 }
 
 impl Identifier {
+    #[must_use]
     pub fn from_raw(raw: String) -> Self {
         Self {
             prefix: String::new(),
@@ -17,22 +18,27 @@ impl Identifier {
         }
     }
 
+    #[must_use]
     pub fn raw(&self) -> &str {
         &self.raw
     }
 
+    #[must_use]
     pub fn rendered(&self) -> String {
         format!("{}{}{}", self.prefix, self.raw, self.postfix)
     }
 
+    #[must_use]
     pub fn lower(&self) -> String {
         self.rendered().to_lowercase()
     }
 
+    #[must_use]
     pub fn upper_camel(&self) -> String {
         self.rendered().to_upper_camel_case()
     }
 
+    #[must_use]
     pub fn snake_case(&self) -> String {
         self.rendered().to_snake_case()
     }
@@ -43,17 +49,15 @@ impl Identifier {
         }
     }
 
+    #[must_use]
     pub fn upper_camel_with_numeric_postfix(&self) -> String {
-        let numeric_postfix: String = self
-            .postfix
-            .chars()
-            .filter(|ch| ch.is_ascii_digit())
-            .collect();
+        let numeric_postfix: String = self.postfix.chars().filter(char::is_ascii_digit).collect();
 
         format!("{}{}{}", self.prefix, self.raw, numeric_postfix).to_upper_camel_case()
     }
 }
 
+#[must_use]
 pub fn is_valid_identifier(candidate: &str) -> bool {
     let mut chars = candidate.chars();
 

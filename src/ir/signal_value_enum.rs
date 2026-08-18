@@ -14,6 +14,7 @@ pub struct SignalValueEnum {
 }
 
 impl SignalValueEnum {
+    #[must_use]
     pub fn from_parsed(name: String, variants: Vec<ParsedValueDescription>) -> Self {
         Self {
             name: Identifier::from_raw(name),

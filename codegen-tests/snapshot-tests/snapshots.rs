@@ -15,7 +15,7 @@ fn generated_path(output_base: &Path, lang: Language) -> PathBuf {
 fn generate_snapshot_fixture(lang: Language) -> String {
     let tempdir = tempfile::tempdir().expect("failed to create temp output directory");
     let output_base = tempdir.path().join("generated");
-    let generated_path = generated_path(&output_base, lang.clone());
+    let generated_path = generated_path(&output_base, lang);
     let output = output_base
         .to_str()
         .expect("temp output path should be valid UTF-8")
@@ -34,7 +34,7 @@ fn generate_snapshot_fixture(lang: Language) -> String {
         separate: false,
     };
 
-    CodegenPipeline::run(config).expect("codegen should succeed for snapshot fixture");
+    CodegenPipeline::run(&config).expect("codegen should succeed for snapshot fixture");
 
     fs::read_to_string(generated_path).expect("generated file should be readable")
 }

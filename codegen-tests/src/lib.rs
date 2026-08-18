@@ -97,7 +97,7 @@ mod tests {
             "#[inline(always)]",
         );
 
-        CodegenPipeline::run(config).context("codegen failed")
+        CodegenPipeline::run(&config).context("codegen failed")
     }
 
     fn run_quiet(command: &mut Command, label: &str) -> Result<()> {

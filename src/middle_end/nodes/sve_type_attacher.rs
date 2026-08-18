@@ -1,6 +1,6 @@
 use super::transformation::TransformationNode;
 
-/// Attach physical type to SignalValueEnum.
+/// Attach physical type to `SignalValueEnum`.
 pub struct AttachSignalValueEnumType;
 
 impl TransformationNode for AttachSignalValueEnumType {

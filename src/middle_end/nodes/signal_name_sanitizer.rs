@@ -17,7 +17,7 @@ impl TransformationNode for SanitizeSignalNames {
                 let count = counts.entry(base.to_lowercase()).or_insert(0);
 
                 let new_postfix = if *count == 0 {
-                    "".into()
+                    String::new()
                 } else {
                     format!("{}", count)
                 };

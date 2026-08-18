@@ -5,11 +5,13 @@ pub struct TransformationPipeline {
 }
 
 impl TransformationPipeline {
+    #[must_use]
     pub fn new() -> Self {
         Self { nodes: Vec::new() }
     }
 
-    pub fn add<N>(mut self, node: N) -> Self
+    #[must_use]
+    pub fn add_node<N>(mut self, node: N) -> Self
     where
         N: TransformationNode + 'static,
     {
@@ -21,5 +23,11 @@ impl TransformationPipeline {
         for node in self.nodes {
             node.transform(file);
         }
+    }
+}
+
+impl Default for TransformationPipeline {
+    fn default() -> Self {
+        Self::new()
     }
 }

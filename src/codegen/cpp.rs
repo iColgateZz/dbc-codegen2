@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    string::ToString,
+};
 
 use heck::ToSnakeCase;
 
@@ -36,6 +39,7 @@ fn cpp_code_injections(out: &mut Generator, config: &CodegenConfig, point: CppCo
 }
 
 impl CppGen {
+    #[must_use]
     pub fn generate(file: &DbcFile, config: &CodegenConfig) -> String {
         let mut out = Generator::new();
 
@@ -57,6 +61,7 @@ impl CppGen {
         out.into_string()
     }
 
+    #[must_use]
     pub fn generate_separate(
         file: &DbcFile,
         config: &CodegenConfig,
@@ -172,10 +177,10 @@ impl CppGen {
 
         let mut emitted_enum_idxs = BTreeSet::new();
         for signal in &file.signals {
-            if let Some(idx) = signal.signal_value_enum_idx {
-                if emitted_enum_idxs.insert(idx.0) {
-                    Self::signal_value_enum(out, signal, &file.signal_value_enums[idx.0], config);
-                }
+            if let Some(idx) = signal.signal_value_enum_idx
+                && emitted_enum_idxs.insert(idx.0)
+            {
+                Self::signal_value_enum(out, signal, &file.signal_value_enums[idx.0], config);
             }
         }
     }
@@ -340,10 +345,10 @@ impl CppGen {
     fn emit_message_id(out: &mut Generator, msg: &Message) {
         match msg.id {
             MessageId::Standard(id) => {
-                line!(out, "static constexpr CanId ID = CanId::standard({});", id)
+                line!(out, "static constexpr CanId ID = CanId::standard({});", id);
             }
             MessageId::Extended(id) => {
-                line!(out, "static constexpr CanId ID = CanId::extended({});", id)
+                line!(out, "static constexpr CanId ID = CanId::extended({});", id);
             }
         }
     }
@@ -836,8 +841,8 @@ impl CppGen {
         ];
 
         if let Some(comment) = &msg.comment {
-            lines.push("".into());
-            lines.extend(comment.lines().map(|l| l.to_string()));
+            lines.push(String::new());
+            lines.extend(comment.lines().map(ToString::to_string));
         }
 
         line!(out, "/**");
@@ -855,7 +860,7 @@ impl CppGen {
         let max = layout.max;
         let unit = &signal.unit;
         let receivers = if signal.receivers.is_empty() {
-            "".into()
+            String::new()
         } else {
             signal
                 .receivers
@@ -898,8 +903,8 @@ impl CppGen {
         ];
 
         if let Some(comment) = &signal.comment {
-            lines.push("".into());
-            lines.extend(comment.lines().map(|l| l.to_string()));
+            lines.push(String::new());
+            lines.extend(comment.lines().map(ToString::to_string));
         }
 
         line!(out, "/**");
@@ -1402,7 +1407,7 @@ impl CppGen {
 
                 start_block!(out, "std::visit([&msg](const auto& v)");
                 line!(out, "using T = std::decay_t<decltype(v)>;");
-                for (mux_value, _) in &muxed_sigs {
+                for mux_value in muxed_sigs.keys() {
                     let variant_class = format!("{}Mux{}", msg_name, mux_value);
                     start_block!(out, "if constexpr (std::is_same_v<T, {}>)", variant_class);
                     line!(out, "msg.set_mux_{}(v);", mux_value);
@@ -1438,7 +1443,7 @@ impl CppGen {
                     mux_layout,
                 );
                 start_block!(out, "switch (mux_raw)");
-                for (mux_value, _) in &muxed_sigs {
+                for mux_value in muxed_sigs.keys() {
                     let variant_class = format!("{}Mux{}", msg_name, mux_value);
                     start_block!(out, "case {}:", mux_value);
                     line!(out, "{} inner{{}};", variant_class);
@@ -1955,7 +1960,7 @@ impl CppGen {
             let field_name = signal.name.raw.to_snake_case();
             let invalid_var = format!("{}_out_of_range", field_name);
             let mut constructor_args = Self::test_vars(signals, valid_suffix);
-            constructor_args[bad_idx] = invalid_var.clone();
+            constructor_args[bad_idx].clone_from(&invalid_var);
             constructor_args.extend(trailing_args.iter().cloned());
 
             start_block!(out, "");
@@ -2358,7 +2363,12 @@ impl CppGen {
         }
 
         if Self::is_bool_signal(signal, file) {
-            return if ordinal % 2 == 0 { "false" } else { "true" }.to_string();
+            return if ordinal.is_multiple_of(2) {
+                "false"
+            } else {
+                "true"
+            }
+            .to_string();
         }
 
         let layout = &file.signal_layouts[signal.layout.0];
@@ -2426,7 +2436,7 @@ impl CppGen {
         let candidates = [
             layout.min + 1.0,
             layout.max - 1.0,
-            (layout.min + layout.max) / 2.0,
+            f64::midpoint(layout.min, layout.max),
             layout.min,
             layout.max,
         ];
@@ -2463,12 +2473,12 @@ impl CppGen {
             let min = layout.min;
             let max = layout.max;
             let type_min = if phys_type == "float" {
-                f32::MIN as f64
+                f64::from(f32::MIN)
             } else {
                 f64::MIN
             };
             let type_max = if phys_type == "float" {
-                f32::MAX as f64
+                f64::from(f32::MAX)
             } else {
                 f64::MAX
             };
@@ -2531,7 +2541,7 @@ impl CppGen {
             match ordinal % 3 {
                 0 => layout.min,
                 1 => layout.max,
-                _ => (layout.min + layout.max) / 2.0,
+                _ => f64::midpoint(layout.min, layout.max),
             }
         } else {
             match ordinal % 5 {
@@ -2583,7 +2593,7 @@ impl CppGen {
         let midpoint = low
             .checked_add(high)
             .map(|v| v / 2)
-            .or_else(|| if low <= 0 && high >= 0 { Some(0) } else { None });
+            .or(if low <= 0 && 0 <= high { Some(0) } else { None });
 
         let mut candidates = Vec::new();
         let ordered = if prefer_bounds {
@@ -2708,7 +2718,7 @@ impl CppGen {
         let used = enum_def
             .variants
             .iter()
-            .map(|variant| variant.value as i128)
+            .map(|variant| i128::from(variant.value))
             .collect::<BTreeSet<_>>();
         let layout = &file.signal_layouts[signal.layout.0];
         let (low, high) = Self::integer_raw_range(layout);
@@ -2721,7 +2731,7 @@ impl CppGen {
         muxed: &BTreeMap<u64, Vec<&Signal>>,
         file: &DbcFile,
     ) -> Option<i128> {
-        let used = muxed.keys().map(|value| *value as i128).collect();
+        let used = muxed.keys().map(|value| i128::from(*value)).collect();
         let layout = &file.signal_layouts[mux_signal.layout.0];
         let (low, high) = Self::integer_raw_range(layout);
 

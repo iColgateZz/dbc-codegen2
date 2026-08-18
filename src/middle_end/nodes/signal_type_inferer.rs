@@ -82,7 +82,7 @@ fn infer_physical_type(
 }
 
 fn enum_coverage(size: u64, variant_count: usize) -> EnumCoverage {
-    match 1u128.checked_shl(size as u32) {
+    match 1u128.checked_shl(u32::try_from(size).unwrap()) {
         Some(possible_values) if variant_count as u128 == possible_values => {
             EnumCoverage::Exhaustive
         }
@@ -118,10 +118,10 @@ fn raw_integer_range(sig_layout: &SignalLayout) -> Option<(i128, i128)> {
 
     if matches!(sig_layout.value_type, ValueType::Signed) {
         let high_bit = size.checked_sub(1)?;
-        let magnitude = 1i128.checked_shl(high_bit as u32)?;
+        let magnitude = 1i128.checked_shl(u32::try_from(high_bit).unwrap())?;
         Some((magnitude.checked_neg()?, magnitude.checked_sub(1)?))
     } else {
-        let values = 1i128.checked_shl(size as u32)?;
+        let values = 1i128.checked_shl(u32::try_from(size).unwrap())?;
         Some((0, values.checked_sub(1)?))
     }
 }

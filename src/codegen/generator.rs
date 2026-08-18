@@ -5,10 +5,12 @@ pub struct Generator {
 }
 
 impl Generator {
+    #[must_use]
     pub fn new() -> Self {
         Self::with_indent("  ")
     }
 
+    #[must_use]
     pub fn with_indent(indent: &str) -> Self {
         Self {
             buffer: String::new(),
@@ -45,14 +47,16 @@ impl Generator {
         if !text.is_empty() {
             self.push_indent();
             self.buffer.push_str(text);
-            self.buffer.push_str("\n");
+            self.buffer.push('\n');
         }
     }
 
+    #[must_use]
     pub fn get(&self) -> &str {
         &self.buffer
     }
 
+    #[must_use]
     pub fn into_string(self) -> String {
         self.buffer
     }

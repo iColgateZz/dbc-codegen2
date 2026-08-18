@@ -62,33 +62,32 @@ pub enum PhysicalType {
 }
 
 impl PhysicalType {
+    #[must_use]
     pub fn is_float(&self) -> bool {
-        match self {
-            PhysicalType::Float32 | PhysicalType::Float64 => true,
-            _ => false,
-        }
+        matches!(self, PhysicalType::Float32 | PhysicalType::Float64)
     }
 
+    #[must_use]
     pub fn min_value_f64(&self) -> f64 {
         match self {
             PhysicalType::Bool => 0.0,
-            PhysicalType::Float32 => f32::MIN as f64,
+            PhysicalType::Float32 => f64::from(f32::MIN),
             PhysicalType::Float64 => f64::MIN,
-            PhysicalType::Integer(repr) => repr.min_value_f64(),
-            PhysicalType::Enum { repr, .. } => repr.min_value_f64(),
+            PhysicalType::Integer(repr) | PhysicalType::Enum { repr, .. } => repr.min_value_f64(),
         }
     }
 
+    #[must_use]
     pub fn max_value_f64(&self) -> f64 {
         match self {
             PhysicalType::Bool => 1.0,
-            PhysicalType::Float32 => f32::MAX as f64,
+            PhysicalType::Float32 => f64::from(f32::MAX),
             PhysicalType::Float64 => f64::MAX,
-            PhysicalType::Integer(repr) => repr.max_value_f64(),
-            PhysicalType::Enum { repr, .. } => repr.max_value_f64(),
+            PhysicalType::Integer(repr) | PhysicalType::Enum { repr, .. } => repr.max_value_f64(),
         }
     }
 
+    #[must_use]
     pub fn integer_range_f64(&self) -> Option<(f64, f64)> {
         match self {
             PhysicalType::Integer(repr) | PhysicalType::Enum { repr, .. } => {
@@ -126,8 +125,7 @@ impl CppType for PhysicalType {
 impl RustIntegerLiteral for PhysicalType {
     fn literal(&self, value: i64) -> Literal {
         match self {
-            PhysicalType::Integer(repr) => repr.literal(value),
-            PhysicalType::Enum { repr, .. } => repr.literal(value),
+            PhysicalType::Integer(repr) | PhysicalType::Enum { repr, .. } => repr.literal(value),
             _ => panic!("Use only with integer types"),
         }
     }
@@ -159,6 +157,7 @@ pub enum IntReprType {
 }
 
 impl IntReprType {
+    #[must_use]
     pub fn from_size_sign(size: u64, signed: bool) -> IntReprType {
         match (signed, size) {
             (false, 0..=8) => IntReprType::U8,
@@ -175,55 +174,60 @@ impl IntReprType {
         }
     }
 
+    #[must_use]
     pub fn min_value_i64(&self) -> i64 {
         match self {
             Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::U128 => 0,
-            Self::I8 => i8::MIN as i64,
-            Self::I16 => i16::MIN as i64,
-            Self::I32 => i32::MIN as i64,
+            Self::I8 => i64::from(i8::MIN),
+            Self::I16 => i64::from(i16::MIN),
+            Self::I32 => i64::from(i32::MIN),
             Self::I64 | Self::I128 => i64::MIN,
         }
     }
 
+    #[must_use]
     pub fn max_value_i64(&self) -> i64 {
         match self {
-            Self::U8 => u8::MAX as i64,
-            Self::U16 => u16::MAX as i64,
-            Self::U32 => u32::MAX as i64,
+            Self::U8 => i64::from(u8::MAX),
+            Self::U16 => i64::from(u16::MAX),
+            Self::U32 => i64::from(u32::MAX),
             Self::U64 | Self::U128 => i64::MAX,
-            Self::I8 => i8::MAX as i64,
-            Self::I16 => i16::MAX as i64,
-            Self::I32 => i32::MAX as i64,
+            Self::I8 => i64::from(i8::MAX),
+            Self::I16 => i64::from(i16::MAX),
+            Self::I32 => i64::from(i32::MAX),
             Self::I64 | Self::I128 => i64::MAX,
         }
     }
 
+    #[must_use]
     pub fn min_value_f64(self) -> f64 {
         match self {
             Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::U128 => 0.0,
-            Self::I8 => i8::MIN as f64,
-            Self::I16 => i16::MIN as f64,
-            Self::I32 => i32::MIN as f64,
+            Self::I8 => f64::from(i8::MIN),
+            Self::I16 => f64::from(i16::MIN),
+            Self::I32 => f64::from(i32::MIN),
             Self::I64 => i64::MIN as f64,
             Self::I128 => i128::MIN as f64,
         }
     }
 
+    #[must_use]
     pub fn max_value_f64(self) -> f64 {
         match self {
-            Self::U8 => u8::MAX as f64,
-            Self::U16 => u16::MAX as f64,
-            Self::U32 => u32::MAX as f64,
+            Self::U8 => f64::from(u8::MAX),
+            Self::U16 => f64::from(u16::MAX),
+            Self::U32 => f64::from(u32::MAX),
             Self::U64 => u64::MAX as f64,
             Self::U128 => u128::MAX as f64,
-            Self::I8 => i8::MAX as f64,
-            Self::I16 => i16::MAX as f64,
-            Self::I32 => i32::MAX as f64,
+            Self::I8 => f64::from(i8::MAX),
+            Self::I16 => f64::from(i16::MAX),
+            Self::I32 => f64::from(i32::MAX),
             Self::I64 => i64::MAX as f64,
             Self::I128 => i128::MAX as f64,
         }
     }
 
+    #[must_use]
     pub fn is_unsigned(&self) -> bool {
         matches!(
             self,
@@ -231,32 +235,34 @@ impl IntReprType {
         )
     }
 
+    #[must_use]
     pub fn from_min_max(min: i128, max: i128) -> Self {
         if min < 0 {
-            if min >= i8::MIN as i128 && max <= i8::MAX as i128 {
+            if min >= i128::from(i8::MIN) && max <= i128::from(i8::MAX) {
                 IntReprType::I8
-            } else if min >= i16::MIN as i128 && max <= i16::MAX as i128 {
+            } else if min >= i128::from(i16::MIN) && max <= i128::from(i16::MAX) {
                 IntReprType::I16
-            } else if min >= i32::MIN as i128 && max <= i32::MAX as i128 {
+            } else if min >= i128::from(i32::MIN) && max <= i128::from(i32::MAX) {
                 IntReprType::I32
-            } else if min >= i64::MIN as i128 && max <= i64::MAX as i128 {
+            } else if min >= i128::from(i64::MIN) && max <= i128::from(i64::MAX) {
                 IntReprType::I64
             } else {
                 IntReprType::I128
             }
-        } else if max <= u8::MAX as i128 {
+        } else if max <= i128::from(u8::MAX) {
             IntReprType::U8
-        } else if max <= u16::MAX as i128 {
+        } else if max <= i128::from(u16::MAX) {
             IntReprType::U16
-        } else if max <= u32::MAX as i128 {
+        } else if max <= i128::from(u32::MAX) {
             IntReprType::U32
-        } else if max <= u64::MAX as i128 {
+        } else if max <= i128::from(u64::MAX) {
             IntReprType::U64
         } else {
             IntReprType::U128
         }
     }
 
+    #[must_use]
     pub fn unsigned(self) -> Self {
         match self {
             Self::U8 | Self::I8 => Self::U8,
@@ -267,6 +273,7 @@ impl IntReprType {
         }
     }
 
+    #[must_use]
     pub fn signed(self) -> Self {
         match self {
             Self::U8 | Self::I8 => Self::I8,
@@ -277,6 +284,7 @@ impl IntReprType {
         }
     }
 
+    #[must_use]
     pub fn bits(self) -> u32 {
         match self {
             Self::U8 | Self::I8 => 8,
@@ -325,16 +333,16 @@ impl CppType for IntReprType {
 impl RustIntegerLiteral for IntReprType {
     fn literal(&self, value: i64) -> Literal {
         match self {
-            Self::U8 => Literal::u8_suffixed(value as u8),
-            Self::U16 => Literal::u16_suffixed(value as u16),
-            Self::U32 => Literal::u32_suffixed(value as u32),
-            Self::U64 => Literal::u64_suffixed(value as u64),
-            Self::U128 => Literal::u128_suffixed(value as u128),
-            Self::I8 => Literal::i8_suffixed(value as i8),
-            Self::I16 => Literal::i16_suffixed(value as i16),
-            Self::I32 => Literal::i32_suffixed(value as i32),
+            Self::U8 => Literal::u8_suffixed(u8::try_from(value).unwrap()),
+            Self::U16 => Literal::u16_suffixed(u16::try_from(value).unwrap()),
+            Self::U32 => Literal::u32_suffixed(u32::try_from(value).unwrap()),
+            Self::U64 => Literal::u64_suffixed(u64::try_from(value).unwrap()),
+            Self::U128 => Literal::u128_suffixed(u128::try_from(value).unwrap()),
+            Self::I8 => Literal::i8_suffixed(i8::try_from(value).unwrap()),
+            Self::I16 => Literal::i16_suffixed(i16::try_from(value).unwrap()),
+            Self::I32 => Literal::i32_suffixed(i32::try_from(value).unwrap()),
             Self::I64 => Literal::i64_suffixed(value),
-            Self::I128 => Literal::i128_suffixed(value as i128),
+            Self::I128 => Literal::i128_suffixed(i128::from(value)),
         }
     }
 }

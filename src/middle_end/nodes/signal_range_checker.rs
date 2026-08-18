@@ -24,8 +24,7 @@ impl CheckNode for CheckSignalPhysicalRangeRepresentable {
                 }
 
                 //ignore floats and doubles
-                let Some((scaled_min, scaled_max)) =
-                    scaled_raw_range(layout, sig.extended_type.clone())
+                let Some((scaled_min, scaled_max)) = scaled_raw_range(layout, sig.extended_type)
                 else {
                     continue;
                 };
@@ -88,7 +87,7 @@ fn pow2(bits: u64) -> Option<f64> {
     if bits > 1023 {
         None
     } else {
-        Some(2f64.powi(bits as i32))
+        Some(2f64.powi(i32::try_from(bits).unwrap()))
     }
 }
 
