@@ -1038,16 +1038,14 @@ fn message_doc(msg: &Message) -> TokenStream {
     };
 
     let mut lines = vec![
-        format!("{}", name),
-        format!("- ID: {}", id_text),
-        format!("- Size: {} bytes", size),
-        format!("- Transmitter: {}", transmitter),
+        format!(" # {}", name),
+        format!(""),
+        format!(" - ID: {}", id_text),
+        format!(" - Size: {} bytes", size),
+        format!(" - Transmitter: {}", transmitter),
     ];
 
-    if let Some(comment) = &msg.comment {
-        lines.push("".into());
-        lines.extend(comment.lines().map(|l| l.to_string()));
-    }
+    append_comments(msg.comment.as_ref(), &mut lines);
 
     quote! {
         #( #[doc = #lines] )*
@@ -1063,7 +1061,7 @@ fn getter_doc(sig: &SignalCtx) -> TokenStream {
     let max = layout.max;
     let unit = &s.unit;
     let receivers = if s.receivers.is_empty() {
-        "".into()
+        String::new()
     } else {
         s.receivers
             .iter()
@@ -1091,23 +1089,21 @@ fn getter_doc(sig: &SignalCtx) -> TokenStream {
     };
 
     let mut lines = vec![
-        format!("{}", name.raw()),
-        format!("- Min: {}", min),
-        format!("- Max: {}", max),
-        format!("- Unit: {}", unit),
-        format!("- Receivers: {}", receivers),
-        format!("- Start bit: {}", start),
-        format!("- Size: {} bits", size),
-        format!("- Factor: {}", factor),
-        format!("- Offset: {}", offset),
-        format!("- Byte order: {}", byte_order),
-        format!("- Type: {}", signed),
+        format!(" Get value of {}", name.raw()),
+        format!(""),
+        format!(" - Min: {}", min),
+        format!(" - Max: {}", max),
+        format!(" - Unit: {}", unit),
+        format!(" - Receivers: {}", receivers),
+        format!(" - Start bit: {}", start),
+        format!(" - Size: {} bits", size),
+        format!(" - Factor: {}", factor),
+        format!(" - Offset: {}", offset),
+        format!(" - Byte order: {}", byte_order),
+        format!(" - Type: {}", signed),
     ];
 
-    if let Some(comment) = &s.comment {
-        lines.push("".into());
-        lines.extend(comment.lines().map(|l| l.to_string()));
-    }
+    append_comments(s.comment.as_ref(), &mut lines);
 
     quote! {
         #( #[doc = #lines] )*
@@ -1123,18 +1119,23 @@ fn setter_doc(sig: &SignalCtx) -> TokenStream {
     let max = layout.max;
 
     let mut lines = vec![
-        format!("Set value of {}", name.raw()),
-        format!("- Min: {}", min),
-        format!("- Max: {}", max),
+        format!(" Set value of {}", name.raw()),
+        format!(""),
+        format!(" - Min: {}", min),
+        format!(" - Max: {}", max),
     ];
 
-    if let Some(comment) = &s.comment {
-        lines.push("".into());
-        lines.extend(comment.lines().map(|l| l.to_string()));
-    }
+    append_comments(s.comment.as_ref(), &mut lines);
 
     quote! {
         #( #[doc = #lines] )*
+    }
+}
+
+fn append_comments(comments: Option<&String>, lines: &mut Vec<String>) {
+    if let Some(comment) = comments {
+        lines.push(String::new());
+        lines.extend(comment.lines().map(|l| format!(" {l}")));
     }
 }
 
