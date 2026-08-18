@@ -117,9 +117,9 @@ struct MsgTrait;
 impl ToTokens for MsgTrait {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         quote! {
-            pub trait GeneratedCanMessage<const LEN: usize>: Sized {
+            pub trait GeneratedCanMessage: Sized {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError>;
-                fn encode(&self) -> [u8; LEN];
+                fn as_encoded_slice(&self) -> &[u8];
             }
         }
         .to_tokens(tokens);
@@ -158,7 +158,7 @@ impl ToTokens for MsgEnum<'_> {
 
         quote! {
             impl Msg {
-                fn try_from(frame: &impl Frame) -> Result<Self, CanError> {
+                pub fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
                     let result = match frame.id() {
                         #( #arms, )*
                         _ => return Err(CanError::UnknownFrameId),
@@ -285,7 +285,7 @@ impl MessageDef<'_> {
 
     fn gen_can_message_impl(name: &Ident) -> TokenStream {
         quote! {
-            impl GeneratedCanMessage<{ Self::LEN }> for #name {
+            impl GeneratedCanMessage for #name {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
                     if frame.data().len() < Self::LEN {
                         return Err(CanError::InvalidPayloadSize);
@@ -301,8 +301,8 @@ impl MessageDef<'_> {
                     Ok(Self { data: buf })
                 }
 
-                fn encode(&self) -> [u8; Self::LEN] {
-                    self.data
+                fn as_encoded_slice(&self) -> &[u8] {
+                    &self.data
                 }
             }
         }
