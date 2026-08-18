@@ -366,7 +366,7 @@ impl PackedStatusMsg {
     /// - Min: -168
     /// - Max: 87
     pub fn set_signed_temp(&mut self, value: i16) -> Result<(), CanError> {
-        if value < -168i16 || value > 87i16 {
+        if !(-168i16..=87i16).contains(&value) {
             return Err(CanError::ValueOutOfRange);
         }
         let raw_value = value
@@ -384,7 +384,7 @@ impl PackedStatusMsg {
     ///
     /// Scaled speed signal used by snapshot testing
     pub fn set_scaled_speed(&mut self, value: f32) -> Result<(), CanError> {
-        if value < 0f32 || value > 655.35f32 {
+        if !(0f32..=655.35f32).contains(&value) {
             return Err(CanError::ValueOutOfRange);
         }
         let raw_value = ((value - (0f32)) / (0.01f32)) as u16;
@@ -550,7 +550,7 @@ impl MotorolaAnalogMsg {
     ///
     /// Signed big-endian scaled temperature
     pub fn set_motorola_temp(&mut self, value: f32) -> Result<(), CanError> {
-        if value < 229.52f32 || value > 270.47f32 {
+        if !(229.52f32..=270.47f32).contains(&value) {
             return Err(CanError::ValueOutOfRange);
         }
         let raw_value = ((value - (250f32)) / (0.01f32)) as i16;
@@ -563,7 +563,7 @@ impl MotorolaAnalogMsg {
     /// - Min: 0
     /// - Max: 5
     pub fn set_motorola_radius(&mut self, value: f32) -> Result<(), CanError> {
-        if value < 0f32 || value > 5f32 {
+        if !(0f32..=5f32).contains(&value) {
             return Err(CanError::ValueOutOfRange);
         }
         let raw_value = ((value - (0f32)) / (0.1f32)) as u8;
@@ -589,7 +589,7 @@ impl MotorolaAnalogMsg {
     /// - Min: 0
     /// - Max: 5
     pub fn set_motorola_float32(&mut self, value: f32) -> Result<(), CanError> {
-        if value < 0f32 || value > 5f32 {
+        if !(0f32..=5f32).contains(&value) {
             return Err(CanError::ValueOutOfRange);
         }
         let raw_value = ((value - (0f32)) / (0.1f32)) as i32;
@@ -675,7 +675,7 @@ impl FloatPayload32Msg {
     /// - Min: -1000
     /// - Max: 1000
     pub fn set_float32_a(&mut self, value: f32) -> Result<(), CanError> {
-        if value < -1000f32 || value > 1000f32 {
+        if !(-1000f32..=1000f32).contains(&value) {
             return Err(CanError::ValueOutOfRange);
         }
         let raw_value = ((value - (0f32)) / (1f32)) as i32;
@@ -688,7 +688,7 @@ impl FloatPayload32Msg {
     /// - Min: -1000
     /// - Max: 1000
     pub fn set_float32_b(&mut self, value: f32) -> Result<(), CanError> {
-        if value < -1000f32 || value > 1000f32 {
+        if !(-1000f32..=1000f32).contains(&value) {
             return Err(CanError::ValueOutOfRange);
         }
         let raw_value = ((value - (0f32)) / (1f32)) as i32;
@@ -754,7 +754,7 @@ impl FloatPayload64Msg {
     /// - Min: -1000
     /// - Max: 1000
     pub fn set_float64_value(&mut self, value: f64) -> Result<(), CanError> {
-        if value < -1000f64 || value > 1000f64 {
+        if !(-1000f64..=1000f64).contains(&value) {
             return Err(CanError::ValueOutOfRange);
         }
         let raw_value = ((value - (0f64)) / (1f64)) as i64;
@@ -838,7 +838,7 @@ impl MuxedTelemetryMsgMux0 {
     /// - Min: 0
     /// - Max: 6553.5
     pub fn set_mux0_distance(&mut self, value: f32) -> Result<(), CanError> {
-        if value < 0f32 || value > 6553.5f32 {
+        if !(0f32..=6553.5f32).contains(&value) {
             return Err(CanError::ValueOutOfRange);
         }
         let raw_value = ((value - (0f32)) / (0.1f32)) as u16;

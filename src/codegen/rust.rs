@@ -902,7 +902,7 @@ impl<'a> SignalCtx<'a> {
                 let min = self.f64_to_correct_literal_with_type(min);
                 let max = self.f64_to_correct_literal_with_type(max);
                 quote! {
-                    if value < #min || value > #max {
+                    if !(#min..=#max).contains(&value) {
                         return Err(CanError::ValueOutOfRange);
                     }
                 }
