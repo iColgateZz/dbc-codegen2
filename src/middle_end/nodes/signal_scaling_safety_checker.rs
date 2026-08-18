@@ -232,8 +232,7 @@ fn check_setter_path(
 
 fn integer_physical_repr(ty: PhysicalType) -> Option<IntReprType> {
     match ty {
-        PhysicalType::Integer(repr) => Some(repr),
-        PhysicalType::Enum { repr, .. } => Some(repr),
+        PhysicalType::Integer(repr) | PhysicalType::Enum { repr, .. } => Some(repr),
         PhysicalType::Bool | PhysicalType::Float32 | PhysicalType::Float64 => None,
     }
 }
@@ -263,16 +262,17 @@ fn actual_raw_domain(layout: &SignalLayout) -> (i128, i128) {
 
 fn int_repr_domain(repr: IntReprType) -> (i128, i128) {
     match repr {
-        IntReprType::U8 => (u8::MIN as i128, u8::MAX as i128),
-        IntReprType::U16 => (u16::MIN as i128, u16::MAX as i128),
-        IntReprType::U32 => (u32::MIN as i128, u32::MAX as i128),
-        IntReprType::U64 => (u64::MIN as i128, u64::MAX as i128),
-        IntReprType::I8 => (i8::MIN as i128, i8::MAX as i128),
-        IntReprType::I16 => (i16::MIN as i128, i16::MAX as i128),
-        IntReprType::I32 => (i32::MIN as i128, i32::MAX as i128),
-        IntReprType::I64 => (i64::MIN as i128, i64::MAX as i128),
+        IntReprType::U8 => (i128::from(u8::MIN), i128::from(u8::MAX)),
+        IntReprType::U16 => (i128::from(u16::MIN), i128::from(u16::MAX)),
+        IntReprType::U32 => (i128::from(u32::MIN), i128::from(u32::MAX)),
+        IntReprType::U64 => (i128::from(u64::MIN), i128::from(u64::MAX)),
+        IntReprType::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
+        IntReprType::I16 => (i128::from(i16::MIN), i128::from(i16::MAX)),
+        IntReprType::I32 => (i128::from(i32::MIN), i128::from(i32::MAX)),
+        IntReprType::I64 => (i128::from(i64::MIN), i128::from(i64::MAX)),
         IntReprType::I128 => (i128::MIN, i128::MAX),
-        IntReprType::U128 => (u128::MIN as i128, u128::MAX as i128),
+        // TODO: This will always panic... U128::MAX is not representable right now
+        IntReprType::U128 => (i128::try_from(u128::MIN).unwrap(), i128::try_from(u128::MAX).unwrap()),
     }
 }
 

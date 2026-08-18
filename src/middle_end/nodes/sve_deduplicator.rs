@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::transformation::TransformationNode;
 use crate::ir::signal_value_enum::SignalValueEnum;
 
-/// Deduplicate SignalValueEnums.
+/// Deduplicate `SignalValueEnums`.
 ///
 /// If enabled, performs the deduplication.
 /// Enums with same names and variants are treated as one.
@@ -43,14 +43,13 @@ impl TransformationNode for DeduplicateSignalValueEnums {
         for (old_idx, sve) in file.signal_value_enums.iter().enumerate() {
             let sig = EnumSignature::from_enum(sve);
 
-            let new_idx = match map.get(&sig) {
-                Some(&idx) => idx,
-                None => {
-                    let idx = new_enums.len();
-                    new_enums.push(sve.clone());
-                    map.insert(sig, idx);
-                    idx
-                }
+            let new_idx = if let Some(&idx) = map.get(&sig) {
+                idx
+            } else {
+                let idx = new_enums.len();
+                new_enums.push(sve.clone());
+                map.insert(sig, idx);
+                idx
             };
 
             remap[old_idx] = new_idx;

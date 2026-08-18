@@ -114,7 +114,7 @@ fn collect_unused_bits(
     msg_size_bytes: u64,
     spans: &[MessageSignalBitSpan],
 ) -> Vec<MessageSignalBitRange> {
-    let msg_bits = msg_size_bytes as usize * 8;
+    let msg_bits = usize::try_from(msg_size_bytes).unwrap() * 8;
 
     if msg_bits == 0 {
         return Vec::new();
@@ -124,9 +124,8 @@ fn collect_unused_bits(
 
     for span in spans {
         let end = span.end.min(msg_bits);
-        for bit in span.start.min(msg_bits)..end {
-            used[bit] = true;
-        }
+        let start = span.start.min(msg_bits);
+        used[start..end].fill(true);
     }
 
     collect_gaps(&used)

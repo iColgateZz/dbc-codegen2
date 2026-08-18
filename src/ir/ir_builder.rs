@@ -31,6 +31,7 @@ pub struct IRBuilder {
 }
 
 impl IRBuilder {
+    #[must_use]
     pub fn to_ir(value: ParsedDbc) -> DbcFile {
         let mut builder = Self::new(value);
         builder.build();
@@ -42,9 +43,11 @@ impl IRBuilder {
         let extended_type_map = Self::extended_type_map(value.signal_extended_value_type_list);
         let (message_comment_map, signal_comment_map) = Self::comment_maps(value.comments);
 
-        let mut file = DbcFile::default();
-        file.nodes = map_into(value.nodes);
-        file.has_extended_mux_symbols = !value.extended_multiplex.is_empty();
+        let file = DbcFile {
+            nodes: map_into(value.nodes),
+            has_extended_mux_symbols: !value.extended_multiplex.is_empty(),
+            ..Default::default()
+        };
 
         Self {
             file,

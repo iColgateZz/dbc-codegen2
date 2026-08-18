@@ -17,6 +17,7 @@ pub struct Message {
 }
 
 impl Message {
+    #[must_use]
     pub fn from_parsed(
         id: ParsedMessageId,
         name: String,
@@ -29,15 +30,16 @@ impl Message {
         Message {
             id: id.into(),
             name: Identifier::from_raw(name),
-            size: size,
+            size,
             transmitter: Transmitter::from(transmitter),
             signal_idxs: signals,
-            layout: layout,
+            layout,
             comment,
             signal_usage: None,
         }
     }
 
+    #[must_use]
     pub fn classify_signals(&self, signals: &[Signal]) -> MessageSignalClassification {
         let mut plain = Vec::new();
         let mut mux_signal = None;

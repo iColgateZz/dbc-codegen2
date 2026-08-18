@@ -1,6 +1,6 @@
 use super::transformation::TransformationNode;
 
-/// Prefix SignalValueEnum with Message name.
+/// Prefix `SignalValueEnum` with Message name.
 ///
 /// Performs the task when enum deduplication is disabled.
 pub struct PrefixSignalValueEnumName {

@@ -5,11 +5,13 @@ pub struct CheckPipeline {
 }
 
 impl CheckPipeline {
+    #[must_use]
     pub fn new() -> Self {
         Self { nodes: Vec::new() }
     }
 
-    pub fn add<N>(mut self, node: N) -> Self
+    #[must_use]
+    pub fn add_node<N>(mut self, node: N) -> Self
     where
         N: CheckNode + 'static,
     {
@@ -21,6 +23,12 @@ impl CheckPipeline {
         for node in self.nodes {
             node.check(file, diagnostics);
         }
+    }
+}
+
+impl Default for CheckPipeline {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

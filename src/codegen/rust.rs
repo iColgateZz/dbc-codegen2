@@ -39,6 +39,7 @@ fn rust_code_injection_tokens(
 }
 
 impl RustGen {
+    #[must_use]
     pub fn generate(file: &DbcFile, config: &CodegenConfig) -> String {
         let imports = quote! {
             use embedded_can::{Frame, Id, StandardId, ExtendedId};
@@ -59,7 +60,7 @@ impl RustGen {
             .map(|m| MessageDef {
                 msg: m,
                 file,
-                config: config,
+                config,
             })
             .collect();
 
@@ -213,7 +214,7 @@ impl ToTokens for MessageDef<'_> {
         if muxed.is_empty() {
             self.generate_plain(tokens, &signals);
         } else {
-            self.generate_mux(tokens, plain, muxed, mux_signal.unwrap());
+            self.generate_mux(tokens, &plain, &muxed, mux_signal.unwrap());
         }
     }
 }
@@ -237,14 +238,14 @@ impl MessageDef<'_> {
             }
         };
 
-        let len = msg.size as usize;
+        let len = usize::try_from(msg.size).unwrap();
 
         let constructor_params = Self::gen_constructor_params(&signals);
         let constructor_body = Self::gen_constructor_body(&signals);
         let getters = Self::gen_getters(&signals, self.config);
         let setters = Self::gen_setters(&signals, self.config);
 
-        let doc = message_doc(&msg);
+        let doc = message_doc(msg);
         let injected =
             rust_code_injection_tokens(self.config, RustCodeInjectionPoint::MessageStruct);
         let can_msg_impl = Self::gen_can_message_impl(&name);
@@ -326,8 +327,8 @@ impl MessageDef<'_> {
     fn generate_mux(
         &self,
         tokens: &mut TokenStream,
-        plain: Vec<&SignalCtx>,
-        muxed: BTreeMap<u64, Vec<&SignalCtx>>,
+        plain: &[&SignalCtx],
+        muxed: &BTreeMap<u64, Vec<&SignalCtx>>,
         mux_signal: &SignalCtx,
     ) {
         let msg = self.msg;
@@ -343,9 +344,9 @@ impl MessageDef<'_> {
             }
         };
 
-        let len = msg.size as usize;
+        let len = usize::try_from(msg.size).unwrap();
 
-        let doc = message_doc(&msg);
+        let doc = message_doc(msg);
 
         let variant_structs = muxed.iter().map(|(idx, sigs)| {
             let struct_name = format_ident!("{}Mux{}", name, idx);
@@ -451,8 +452,8 @@ impl MessageDef<'_> {
             }
         });
 
-        let plain_params = Self::gen_constructor_params(&plain);
-        let constructor_body = Self::gen_constructor_body(&plain);
+        let plain_params = Self::gen_constructor_params(plain);
+        let constructor_body = Self::gen_constructor_body(plain);
         let mux_apply_arms = muxed.keys().map(|idx| {
             let variant = format_ident!("V{}", idx);
             let setter = format_ident!("set_mux{}", idx);
@@ -463,8 +464,8 @@ impl MessageDef<'_> {
                 }
             }
         });
-        let plain_getters = Self::gen_getters(&plain, self.config);
-        let plain_setters = Self::gen_setters(&plain, self.config);
+        let plain_getters = Self::gen_getters(plain, self.config);
+        let plain_setters = Self::gen_setters(plain, self.config);
 
         let mux_enum_injected =
             rust_code_injection_tokens(self.config, RustCodeInjectionPoint::MuxEnum);
@@ -539,7 +540,7 @@ impl MessageDef<'_> {
         signals.iter().map(|s| {
             let field = s.field_ident();
             let ty = s.rust_type();
-            let doc = getter_doc(&s);
+            let doc = getter_doc(s);
 
             let read = s.decode_read();
             let expr = s.decode_expr();
@@ -622,7 +623,7 @@ impl ToTokens for SignalValueEnumCtx<'_> {
     }
 }
 
-impl<'a> SignalValueEnumCtx<'a> {
+impl SignalValueEnumCtx<'_> {
     fn gen_with_other(
         &self,
         enum_name: &Ident,
@@ -1224,12 +1225,12 @@ impl ToTokens for PlainMessageTest<'_> {
 
         let first_values = self.signals.iter().map(|s| {
             let var = format_ident!("{}_value", s.signal.name.snake_case());
-            s.test_value_statement(&var, format_ident!("u"))
+            s.test_value_statement(&var, &format_ident!("u"))
         });
 
         let second_values = self.signals.iter().map(|s| {
             let var = format_ident!("{}_next_value", s.signal.name.snake_case());
-            s.test_value_statement(&var, format_ident!("u"))
+            s.test_value_statement(&var, &format_ident!("u"))
         });
 
         let constructor_args = self
@@ -1299,7 +1300,7 @@ impl ToTokens for MultiplexedMessageTest<'_> {
             .iter()
             .map(|s| {
                 let var = format_ident!("{}_value", s.signal.name.snake_case());
-                s.test_value_statement(&var, format_ident!("u"))
+                s.test_value_statement(&var, &format_ident!("u"))
             })
             .collect();
 
@@ -1308,7 +1309,7 @@ impl ToTokens for MultiplexedMessageTest<'_> {
             .iter()
             .map(|s| {
                 let var = format_ident!("{}_next_value", s.signal.name.snake_case());
-                s.test_value_statement(&var, format_ident!("u"))
+                s.test_value_statement(&var, &format_ident!("u"))
             })
             .collect();
 
@@ -1369,12 +1370,12 @@ impl ToTokens for MultiplexedMessageTest<'_> {
 
             let first_values = sigs.iter().map(|s| {
                 let var = format_ident!("{}_value", s.signal.name.snake_case());
-                s.test_value_statement(&var, format_ident!("u"))
+                s.test_value_statement(&var, &format_ident!("u"))
             });
 
             let second_values = sigs.iter().map(|s| {
                 let var = format_ident!("{}_next_value", s.signal.name.snake_case());
-                s.test_value_statement(&var, format_ident!("u"))
+                s.test_value_statement(&var, &format_ident!("u"))
             });
 
             let constructor_args = sigs.iter().map(|s| {
@@ -1403,12 +1404,12 @@ impl ToTokens for MultiplexedMessageTest<'_> {
 
             let next_first_values = next_sigs.iter().map(|s| {
                 let var = format_ident!("{}_switch_value", s.signal.name.snake_case());
-                s.test_value_statement(&var, format_ident!("u"))
+                s.test_value_statement(&var, &format_ident!("u"))
             });
 
             let next_second_values = next_sigs.iter().map(|s| {
                 let var = format_ident!("{}_switch_next_value", s.signal.name.snake_case());
-                s.test_value_statement(&var, format_ident!("u"))
+                s.test_value_statement(&var, &format_ident!("u"))
             });
 
             let next_constructor_args = next_sigs.iter().map(|s| {
@@ -1520,8 +1521,8 @@ impl ToTokens for MultiplexedMessageTest<'_> {
     }
 }
 
-impl<'a> SignalCtx<'a> {
-    fn test_value_statement(&self, var: &Ident, arbitrary: Ident) -> TokenStream {
+impl SignalCtx<'_> {
+    fn test_value_statement(&self, var: &Ident, arbitrary: &Ident) -> TokenStream {
         if self.is_enum() {
             let enum_name = self.enum_ident();
 
@@ -1583,7 +1584,7 @@ impl<'a> SignalCtx<'a> {
             let #var: #ty = {
                 let raw = #arbitrary
                     .int_in_range(#min..=#max)
-                    .expect("failed to generate physical interger value");
+                    .expect("failed to generate physical integer value");
                 raw
             };
         }

@@ -26,7 +26,7 @@ use std::path::Path;
 pub struct CodegenPipeline;
 
 impl CodegenPipeline {
-    pub fn run(config: CodegenConfig) -> anyhow::Result<()> {
+    pub fn run(config: &CodegenConfig) -> anyhow::Result<()> {
         let mut parsed_dbcs = config.inputs.iter().map(|input| {
             let data = fs::read_to_string(input)
                 .with_context(|| format!("Unable to read input file `{input}`"))?;
@@ -47,26 +47,26 @@ impl CodegenPipeline {
 
         let mut dbc = IRBuilder::to_ir(merged_parsed_dbc);
 
-        TransformationPipeline::new()
-            .add(ComputeBitvecPositions)
-            .add(AttachMessageSignalUsage)
-            .add(InferSignalTypes)
+        TransformationPipeline::default()
+            .add_node(ComputeBitvecPositions)
+            .add_node(AttachMessageSignalUsage)
+            .add_node(InferSignalTypes)
             .run(&mut dbc);
 
         let mut diagnostics = Diagnostics::default();
         CheckPipeline::new()
-            .add(CheckZeroZeroRanges {
+            .add_node(CheckZeroZeroRanges {
                 zero_zero_range_allows_all: config.zero_zero_range_allows_all,
             })
-            .add(CheckUniqueMessageIds)
-            .add(CheckSignalLayoutValidity)
-            .add(CheckMessageSignalUsage)
-            .add(CheckUnsupportedMultiplexing)
-            .add(CheckEnumVariants)
-            .add(CheckSignalPhysicalRangeRepresentable {
+            .add_node(CheckUniqueMessageIds)
+            .add_node(CheckSignalLayoutValidity)
+            .add_node(CheckMessageSignalUsage)
+            .add_node(CheckUnsupportedMultiplexing)
+            .add_node(CheckEnumVariants)
+            .add_node(CheckSignalPhysicalRangeRepresentable {
                 zero_zero_range_allows_all: config.zero_zero_range_allows_all,
             })
-            .add(CheckSignalScalingArithmeticSafety)
+            .add_node(CheckSignalScalingArithmeticSafety)
             .run(&dbc, &mut diagnostics);
 
         diagnostics.emit();
@@ -75,23 +75,23 @@ impl CodegenPipeline {
             anyhow::bail!("En error was found during validation phase!");
         }
 
-        TransformationPipeline::new()
-            .add(SanitizeSignalEnumVariantNames)
-            .add(DeduplicateSignalValueEnums {
+        TransformationPipeline::default()
+            .add_node(SanitizeSignalEnumVariantNames)
+            .add_node(DeduplicateSignalValueEnums {
                 dedup_enabled: !config.no_enum_dedup,
             })
-            .add(PrefixSignalValueEnumName {
+            .add_node(PrefixSignalValueEnumName {
                 dedup_enabled: !config.no_enum_dedup,
             })
-            .add(AttachSignalValueEnumType)
-            .add(SanitizeMessageNames)
-            .add(SanitizeSVENames)
-            .add(SanitizeSignalNames)
+            .add_node(AttachSignalValueEnumType)
+            .add_node(SanitizeMessageNames)
+            .add_node(SanitizeSVENames)
+            .add_node(SanitizeSignalNames)
             .run(&mut dbc);
 
         match &config.lang {
             Language::Rust => {
-                let code = codegen::rust::RustGen::generate(&dbc, &config);
+                let code = codegen::rust::RustGen::generate(&dbc, config);
                 let out =
                     PathBuf::from(&config.output).with_extension(config.lang.file_extension());
                 std::fs::write(out, code)?;
@@ -105,12 +105,12 @@ impl CodegenPipeline {
                     .and_then(|stem| stem.to_str())
                     .context("C++ output path must have a valid UTF-8 file stem")?;
 
-                for generated in codegen::cpp::CppGen::generate_separate(&dbc, &config, stem) {
+                for generated in codegen::cpp::CppGen::generate_separate(&dbc, config, stem) {
                     std::fs::write(parent.join(generated.file_name), generated.contents)?;
                 }
             }
             Language::Cpp => {
-                let code = codegen::cpp::CppGen::generate(&dbc, &config);
+                let code = codegen::cpp::CppGen::generate(&dbc, config);
                 let out =
                     PathBuf::from(&config.output).with_extension(config.lang.file_extension());
                 std::fs::write(out, code)?;

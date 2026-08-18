@@ -42,6 +42,7 @@ impl Diagnostics {
         });
     }
 
+    #[must_use]
     pub fn has_errors(&self) -> bool {
         self.diagnostics
             .iter()

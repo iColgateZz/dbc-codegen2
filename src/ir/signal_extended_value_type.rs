@@ -1,6 +1,6 @@
 use can_dbc::SignalExtendedValueType as ParsedExtendedValueType;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ExtendedValueType {
     Integer,
     Float32,

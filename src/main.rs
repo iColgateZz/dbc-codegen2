@@ -76,7 +76,7 @@ fn main() {
     match cli.command {
         Command::Parse { input, output } => {
             let dbc = parse_dbc_file(&input);
-            if let Err(e) = write_parsed_dbc(dbc, &output) {
+            if let Err(e) = write_parsed_dbc(&dbc, &output) {
                 eprintln!("Error parsing dbc: {e}");
             }
         }
@@ -84,7 +84,7 @@ fn main() {
         Command::Ir { input, output } => {
             let dbc = parse_dbc_file(&input);
             let ir = IRBuilder::to_ir(dbc);
-            if let Err(e) = write_ir(ir, &output) {
+            if let Err(e) = write_ir(&ir, &output) {
                 eprintln!("Error writing IR: {e}");
             }
         }
@@ -121,7 +121,7 @@ fn main() {
                 "#[inline(always)]",
             );
 
-            if let Err(err) = CodegenPipeline::run(config) {
+            if let Err(err) = CodegenPipeline::run(&config) {
                 eprintln!("{:#}", err);
                 std::process::exit(1);
             }
@@ -129,7 +129,7 @@ fn main() {
     }
 }
 
-fn write_parsed_dbc(dbc: ParsedDbc, output: &str) -> std::io::Result<()> {
+fn write_parsed_dbc(dbc: &ParsedDbc, output: &str) -> std::io::Result<()> {
     let output_file = File::create(output)?;
     let mut writer = BufWriter::new(output_file);
 
@@ -139,7 +139,7 @@ fn write_parsed_dbc(dbc: ParsedDbc, output: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn write_ir(ir: DbcFile, output: &str) -> std::io::Result<()> {
+fn write_ir(ir: &DbcFile, output: &str) -> std::io::Result<()> {
     let output_file = File::create(output)?;
     let mut writer = BufWriter::new(output_file);
 
@@ -149,6 +149,7 @@ fn write_ir(ir: DbcFile, output: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+#[must_use]
 pub fn parse_dbc_file(file_path: &str) -> ParsedDbc {
     let data = fs::read_to_string(file_path).expect("Unable to read input file");
     ParsedDbc::try_from(data.as_str()).unwrap()
