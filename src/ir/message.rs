@@ -1,7 +1,6 @@
 use crate::ir::signal::{MultiplexIndicator, Signal};
 use crate::ir::{Identifier, MessageLayoutIdx, SignalIdx};
 use can_dbc::MessageId as ParsedMessageId;
-use can_dbc::Transmitter as ParsedTransmitter;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone)]
@@ -21,7 +20,7 @@ impl Message {
         id: ParsedMessageId,
         name: String,
         size: u64,
-        transmitter: ParsedTransmitter,
+        transmitter: Option<String>,
         signals: Vec<SignalIdx>,
         layout: MessageLayoutIdx,
         comment: Option<String>,
@@ -92,11 +91,11 @@ pub enum Transmitter {
     Node(Identifier),
     VectorXXX,
 }
-impl From<ParsedTransmitter> for Transmitter {
-    fn from(value: ParsedTransmitter) -> Self {
+impl From<Option<String>> for Transmitter {
+    fn from(value: Option<String>) -> Self {
         match value {
-            ParsedTransmitter::NodeName(s) => Transmitter::Node(Identifier::from_raw(s)),
-            ParsedTransmitter::VectorXXX => Transmitter::VectorXXX,
+            Some(s) => Transmitter::Node(Identifier::from_raw(s)),
+            None => Transmitter::VectorXXX,
         }
     }
 }
