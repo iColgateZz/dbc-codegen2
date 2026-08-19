@@ -7,7 +7,7 @@ use crate::{
 };
 
 pub struct CheckSignalPhysicalRangeRepresentable {
-    pub zero_zero_range_allows_all: bool,
+    pub allow_unrestricted_ranges: bool,
 }
 
 impl CheckNode for CheckSignalPhysicalRangeRepresentable {
@@ -19,7 +19,7 @@ impl CheckNode for CheckSignalPhysicalRangeRepresentable {
 
                 //TODO: checking does not make much sense when range is [0|0].
                 //      use inferred type bounds instead?
-                if self.zero_zero_range_allows_all && layout.min == 0.0 && layout.max == 0.0 {
+                if self.allow_unrestricted_ranges && layout.min == 0.0 && layout.max == 0.0 {
                     continue;
                 }
 

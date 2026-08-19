@@ -60,7 +60,7 @@ pub enum Command {
         /// When this flag is enabled, the generator ignores the `[0|0]` range and
         /// allows all values representable by the signal encoding.
         #[arg(long, default_value = "false")]
-        zero_zero_range_allows_all: bool,
+        allow_unrestricted_ranges: bool,
         /// Generate tests for messages
         #[arg(long = "test", default_value = "false")]
         generate_tests: bool,
@@ -95,7 +95,7 @@ fn main() {
             lang,
             no_enum_other,
             no_enum_dedup,
-            zero_zero_range_allows_all,
+            allow_unrestricted_ranges,
             generate_tests,
             separate,
         } => {
@@ -103,9 +103,9 @@ fn main() {
                 inputs,
                 output,
                 lang,
-                no_enum_other,
-                no_enum_dedup,
-                zero_zero_range_allows_all,
+                enum_other: !no_enum_other,
+                enum_dedup: !no_enum_dedup,
+                allow_unrestricted_ranges,
                 rust_code_injections: HashMap::new(),
                 cpp_code_injections: HashMap::new(),
                 generate_tests,

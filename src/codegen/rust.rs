@@ -547,7 +547,7 @@ impl MessageDef<'_> {
             let getter_injected =
                 rust_code_injection_tokens(config, RustCodeInjectionPoint::Getter);
 
-            if s.is_enum() && s.config.no_enum_other {
+            if s.is_enum() && !s.config.enum_other {
                 quote! {
                     #doc
                     #getter_injected
@@ -612,7 +612,7 @@ impl ToTokens for SignalValueEnumCtx<'_> {
         let repr_type = &enum_def.phys_type;
         let rust_type = format_ident!("{}", repr_type.as_rust_type());
 
-        let enum_def_tokens = if !self.config.no_enum_other {
+        let enum_def_tokens = if self.config.enum_other {
             self.gen_with_other(&enum_name, &rust_type, enum_def)
         } else {
             self.gen_without_other(&enum_name, &rust_type, enum_def)
@@ -870,7 +870,7 @@ impl<'a> SignalCtx<'a> {
         let min = self.layout.min;
         let max = self.layout.max;
 
-        if self.config.zero_zero_range_allows_all && min == max && min == 0.0 {
+        if self.config.allow_unrestricted_ranges && min == max && min == 0.0 {
             return quote! {};
         }
 
@@ -955,10 +955,10 @@ impl<'a> SignalCtx<'a> {
             let enum_name = self.enum_ident();
             let raw_ty = self.raw_rust_type();
 
-            if self.config.no_enum_other {
-                quote! { #enum_name::try_from(#raw as #raw_ty)? }
-            } else {
+            if self.config.enum_other {
                 quote! { #enum_name::from(#raw as #raw_ty) }
+            } else {
+                quote! { #enum_name::try_from(#raw as #raw_ty)? }
             }
         } else if self.is_bool() {
             quote! { #raw == 1 }
@@ -1596,7 +1596,7 @@ impl<'a> SignalCtx<'a> {
     fn test_getter_assertion_on(&self, receiver: &Ident, expected: &Ident) -> TokenStream {
         let getter = self.field_ident();
 
-        if self.is_enum() && self.config.no_enum_other {
+        if self.is_enum() && !self.config.enum_other {
             quote! {
                 assert_eq!(
                     #receiver.#getter().expect("enum getter should decode generated enum value"),
