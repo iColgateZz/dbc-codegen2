@@ -137,8 +137,8 @@ pub enum Msg {
     VariableLength(VariableLengthMsg),
     J1939Snapshot(J1939SnapshotMsg),
 }
-impl Msg {
-    pub fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
+impl GeneratedCanMessage for Msg {
+    fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         let result = match frame.id() {
             PackedStatusMsg::ID => {
                 Msg::PackedStatus(PackedStatusMsg::try_from_frame(frame)?)
@@ -173,6 +173,20 @@ impl Msg {
             _ => return Err(CanError::UnknownFrameId),
         };
         Ok(result)
+    }
+    fn as_encoded_slice(&self) -> &[u8] {
+        match self {
+            Msg::PackedStatus(msg) => msg.as_encoded_slice(),
+            Msg::MotorolaAnalog(msg) => msg.as_encoded_slice(),
+            Msg::FloatPayload32(msg) => msg.as_encoded_slice(),
+            Msg::FloatPayload64(msg) => msg.as_encoded_slice(),
+            Msg::MuxedTelemetry(msg) => msg.as_encoded_slice(),
+            Msg::EmptyZeroDlc(msg) => msg.as_encoded_slice(),
+            Msg::ExtendedClassic(msg) => msg.as_encoded_slice(),
+            Msg::ExtendedCanFd(msg) => msg.as_encoded_slice(),
+            Msg::VariableLength(msg) => msg.as_encoded_slice(),
+            Msg::J1939Snapshot(msg) => msg.as_encoded_slice(),
+        }
     }
 }
 ///PackedStatus
