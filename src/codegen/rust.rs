@@ -1045,7 +1045,7 @@ fn message_doc(msg: &Message) -> TokenStream {
         format!(" - Transmitter: {}", transmitter),
     ];
 
-    append_comments(msg.comment.as_ref(), &mut lines);
+    append_comments(&mut lines, msg.comment.as_deref());
 
     quote! {
         #( #[doc = #lines] )*
@@ -1103,7 +1103,7 @@ fn getter_doc(sig: &SignalCtx) -> TokenStream {
         format!(" - Type: {}", signed),
     ];
 
-    append_comments(s.comment.as_ref(), &mut lines);
+    append_comments(&mut lines, s.comment.as_deref());
 
     quote! {
         #( #[doc = #lines] )*
@@ -1125,14 +1125,14 @@ fn setter_doc(sig: &SignalCtx) -> TokenStream {
         format!(" - Max: {}", max),
     ];
 
-    append_comments(s.comment.as_ref(), &mut lines);
+    append_comments(&mut lines, s.comment.as_deref());
 
     quote! {
         #( #[doc = #lines] )*
     }
 }
 
-fn append_comments(comments: Option<&String>, lines: &mut Vec<String>) {
+fn append_comments(lines: &mut Vec<String>, comments: Option<&str>) {
     if let Some(comment) = comments {
         lines.push(String::new());
         lines.extend(comment.lines().map(|l| format!(" {l}")));
