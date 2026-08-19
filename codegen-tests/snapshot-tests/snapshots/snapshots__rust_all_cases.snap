@@ -120,9 +120,9 @@ impl From<Mux1ChoiceEnum> for u8 {
         }
     }
 }
-pub trait GeneratedCanMessage<const LEN: usize>: Sized {
+pub trait GeneratedCanMessage: Sized {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError>;
-    fn encode(&self) -> [u8; LEN];
+    fn as_encoded_slice(&self) -> &[u8];
 }
 #[derive(Debug, Clone)]
 pub enum Msg {
@@ -137,8 +137,8 @@ pub enum Msg {
     VariableLength(VariableLengthMsg),
     J1939Snapshot(J1939SnapshotMsg),
 }
-impl Msg {
-    fn try_from(frame: &impl Frame) -> Result<Self, CanError> {
+impl GeneratedCanMessage for Msg {
+    fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         let result = match frame.id() {
             PackedStatusMsg::ID => {
                 Msg::PackedStatus(PackedStatusMsg::try_from_frame(frame)?)
@@ -173,6 +173,20 @@ impl Msg {
             _ => return Err(CanError::UnknownFrameId),
         };
         Ok(result)
+    }
+    fn as_encoded_slice(&self) -> &[u8] {
+        match self {
+            Msg::PackedStatus(msg) => msg.as_encoded_slice(),
+            Msg::MotorolaAnalog(msg) => msg.as_encoded_slice(),
+            Msg::FloatPayload32(msg) => msg.as_encoded_slice(),
+            Msg::FloatPayload64(msg) => msg.as_encoded_slice(),
+            Msg::MuxedTelemetry(msg) => msg.as_encoded_slice(),
+            Msg::EmptyZeroDlc(msg) => msg.as_encoded_slice(),
+            Msg::ExtendedClassic(msg) => msg.as_encoded_slice(),
+            Msg::ExtendedCanFd(msg) => msg.as_encoded_slice(),
+            Msg::VariableLength(msg) => msg.as_encoded_slice(),
+            Msg::J1939Snapshot(msg) => msg.as_encoded_slice(),
+        }
     }
 }
 /// # PackedStatus
@@ -422,7 +436,7 @@ impl PackedStatusMsg {
         Ok(())
     }
 }
-impl GeneratedCanMessage<{ Self::LEN }> for PackedStatusMsg {
+impl GeneratedCanMessage for PackedStatusMsg {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         if frame.data().len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
@@ -434,8 +448,8 @@ impl GeneratedCanMessage<{ Self::LEN }> for PackedStatusMsg {
         buf.copy_from_slice(&frame.data()[..Self::LEN]);
         Ok(Self { data: buf })
     }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
+    fn as_encoded_slice(&self) -> &[u8] {
+        &self.data
     }
 }
 /// # MotorolaAnalog
@@ -598,7 +612,7 @@ impl MotorolaAnalogMsg {
         Ok(())
     }
 }
-impl GeneratedCanMessage<{ Self::LEN }> for MotorolaAnalogMsg {
+impl GeneratedCanMessage for MotorolaAnalogMsg {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         if frame.data().len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
@@ -610,8 +624,8 @@ impl GeneratedCanMessage<{ Self::LEN }> for MotorolaAnalogMsg {
         buf.copy_from_slice(&frame.data()[..Self::LEN]);
         Ok(Self { data: buf })
     }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
+    fn as_encoded_slice(&self) -> &[u8] {
+        &self.data
     }
 }
 /// # FloatPayload32
@@ -697,7 +711,7 @@ impl FloatPayload32Msg {
         Ok(())
     }
 }
-impl GeneratedCanMessage<{ Self::LEN }> for FloatPayload32Msg {
+impl GeneratedCanMessage for FloatPayload32Msg {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         if frame.data().len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
@@ -709,8 +723,8 @@ impl GeneratedCanMessage<{ Self::LEN }> for FloatPayload32Msg {
         buf.copy_from_slice(&frame.data()[..Self::LEN]);
         Ok(Self { data: buf })
     }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
+    fn as_encoded_slice(&self) -> &[u8] {
+        &self.data
     }
 }
 /// # FloatPayload64
@@ -763,7 +777,7 @@ impl FloatPayload64Msg {
         Ok(())
     }
 }
-impl GeneratedCanMessage<{ Self::LEN }> for FloatPayload64Msg {
+impl GeneratedCanMessage for FloatPayload64Msg {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         if frame.data().len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
@@ -775,8 +789,8 @@ impl GeneratedCanMessage<{ Self::LEN }> for FloatPayload64Msg {
         buf.copy_from_slice(&frame.data()[..Self::LEN]);
         Ok(Self { data: buf })
     }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
+    fn as_encoded_slice(&self) -> &[u8] {
+        &self.data
     }
 }
 #[derive(Debug, Clone)]
@@ -1034,7 +1048,7 @@ impl MuxedTelemetryMsg {
         Ok(())
     }
 }
-impl GeneratedCanMessage<{ Self::LEN }> for MuxedTelemetryMsg {
+impl GeneratedCanMessage for MuxedTelemetryMsg {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         if frame.data().len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
@@ -1046,8 +1060,8 @@ impl GeneratedCanMessage<{ Self::LEN }> for MuxedTelemetryMsg {
         buf.copy_from_slice(&frame.data()[..Self::LEN]);
         Ok(Self { data: buf })
     }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
+    fn as_encoded_slice(&self) -> &[u8] {
+        &self.data
     }
 }
 /// # EmptyZeroDlc
@@ -1067,7 +1081,7 @@ impl EmptyZeroDlcMsg {
         Ok(msg)
     }
 }
-impl GeneratedCanMessage<{ Self::LEN }> for EmptyZeroDlcMsg {
+impl GeneratedCanMessage for EmptyZeroDlcMsg {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         if frame.data().len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
@@ -1079,8 +1093,8 @@ impl GeneratedCanMessage<{ Self::LEN }> for EmptyZeroDlcMsg {
         buf.copy_from_slice(&frame.data()[..Self::LEN]);
         Ok(Self { data: buf })
     }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
+    fn as_encoded_slice(&self) -> &[u8] {
+        &self.data
     }
 }
 /// # ExtendedClassic
@@ -1133,7 +1147,7 @@ impl ExtendedClassicMsg {
         Ok(())
     }
 }
-impl GeneratedCanMessage<{ Self::LEN }> for ExtendedClassicMsg {
+impl GeneratedCanMessage for ExtendedClassicMsg {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         if frame.data().len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
@@ -1145,8 +1159,8 @@ impl GeneratedCanMessage<{ Self::LEN }> for ExtendedClassicMsg {
         buf.copy_from_slice(&frame.data()[..Self::LEN]);
         Ok(Self { data: buf })
     }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
+    fn as_encoded_slice(&self) -> &[u8] {
+        &self.data
     }
 }
 /// # ExtendedCanFd
@@ -1238,7 +1252,7 @@ impl ExtendedCanFdMsg {
         Ok(())
     }
 }
-impl GeneratedCanMessage<{ Self::LEN }> for ExtendedCanFdMsg {
+impl GeneratedCanMessage for ExtendedCanFdMsg {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         if frame.data().len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
@@ -1250,8 +1264,8 @@ impl GeneratedCanMessage<{ Self::LEN }> for ExtendedCanFdMsg {
         buf.copy_from_slice(&frame.data()[..Self::LEN]);
         Ok(Self { data: buf })
     }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
+    fn as_encoded_slice(&self) -> &[u8] {
+        &self.data
     }
 }
 /// # VariableLength
@@ -1442,7 +1456,7 @@ impl VariableLengthMsg {
         Ok(())
     }
 }
-impl GeneratedCanMessage<{ Self::LEN }> for VariableLengthMsg {
+impl GeneratedCanMessage for VariableLengthMsg {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         if frame.data().len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
@@ -1454,8 +1468,8 @@ impl GeneratedCanMessage<{ Self::LEN }> for VariableLengthMsg {
         buf.copy_from_slice(&frame.data()[..Self::LEN]);
         Ok(Self { data: buf })
     }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
+    fn as_encoded_slice(&self) -> &[u8] {
+        &self.data
     }
 }
 /// # J1939Snapshot
@@ -1508,7 +1522,7 @@ impl J1939SnapshotMsg {
         Ok(())
     }
 }
-impl GeneratedCanMessage<{ Self::LEN }> for J1939SnapshotMsg {
+impl GeneratedCanMessage for J1939SnapshotMsg {
     fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
         if frame.data().len() < Self::LEN {
             return Err(CanError::InvalidPayloadSize);
@@ -1520,7 +1534,7 @@ impl GeneratedCanMessage<{ Self::LEN }> for J1939SnapshotMsg {
         buf.copy_from_slice(&frame.data()[..Self::LEN]);
         Ok(Self { data: buf })
     }
-    fn encode(&self) -> [u8; Self::LEN] {
-        self.data
+    fn as_encoded_slice(&self) -> &[u8] {
+        &self.data
     }
 }

@@ -117,9 +117,9 @@ struct MsgTrait;
 impl ToTokens for MsgTrait {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         quote! {
-            pub trait GeneratedCanMessage<const LEN: usize>: Sized {
+            pub trait GeneratedCanMessage: Sized {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError>;
-                fn encode(&self) -> [u8; LEN];
+                fn as_encoded_slice(&self) -> &[u8];
             }
         }
         .to_tokens(tokens);
@@ -133,6 +133,10 @@ struct MsgEnum<'a> {
 
 impl ToTokens for MsgEnum<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        if self.messages.is_empty() {
+            return;
+        }
+
         let injected = rust_code_injection_tokens(self.config, RustCodeInjectionPoint::MessageEnum);
 
         let variants = self.messages.iter().map(|msg| {
@@ -150,21 +154,32 @@ impl ToTokens for MsgEnum<'_> {
         }
         .to_tokens(tokens);
 
-        let arms = self.messages.iter().map(|msg| {
+        let try_from_frame_match_arms = self.messages.iter().map(|msg| {
             let name = format_ident!("{}", msg.name.upper_camel());
             let variant_name = format_ident!("{}", msg.name.upper_camel_with_numeric_postfix());
             quote! { #name::ID => Msg::#variant_name(#name::try_from_frame(frame)?) }
         });
 
+        let as_encoded_slice_match_arms = self.messages.iter().map(|msg| {
+            let variant_name = format_ident!("{}", msg.name.upper_camel_with_numeric_postfix());
+            quote! { Msg::#variant_name(msg) => msg.as_encoded_slice() }
+        });
+
         quote! {
-            impl Msg {
-                fn try_from(frame: &impl Frame) -> Result<Self, CanError> {
-                    let result = match frame.id() {
-                        #( #arms, )*
+            impl GeneratedCanMessage for Msg {
+                fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
+                  let result = match frame.id() {
+                        #( #try_from_frame_match_arms, )*
                         _ => return Err(CanError::UnknownFrameId),
                     };
 
                     Ok(result)
+                }
+
+                fn as_encoded_slice(&self) -> &[u8] {
+                    match self {
+                        #( #as_encoded_slice_match_arms, )*
+                    }
                 }
             }
         }
@@ -285,7 +300,7 @@ impl MessageDef<'_> {
 
     fn gen_can_message_impl(name: &Ident) -> TokenStream {
         quote! {
-            impl GeneratedCanMessage<{ Self::LEN }> for #name {
+            impl GeneratedCanMessage for #name {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
                     if frame.data().len() < Self::LEN {
                         return Err(CanError::InvalidPayloadSize);
@@ -301,8 +316,8 @@ impl MessageDef<'_> {
                     Ok(Self { data: buf })
                 }
 
-                fn encode(&self) -> [u8; Self::LEN] {
-                    self.data
+                fn as_encoded_slice(&self) -> &[u8] {
+                    &self.data
                 }
             }
         }
