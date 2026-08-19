@@ -18,11 +18,11 @@ exclude = ["codegen-tests/*", "data/*"]
 
 [dependencies]
 anyhow = "1"
-can-dbc = "8.0.0"
+can-dbc = "10.0.0"
 embedded-can = "0.4"
-prettyplease = "0.2"
+prettyplease = "0.3"
 proc-macro2 = "1"
 quote = "1"
-syn = { version = "2", features = ["full"] }
+syn = { version = "3", features = ["full"] }
 clap = { version = "4", features = ["derive"] }
 heck = "0.5"

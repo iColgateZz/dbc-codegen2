@@ -1,4 +1,5 @@
 use can_dbc::ByteOrder as ParsedByteOrder;
+use can_dbc::NumericValue;
 use can_dbc::Signal as ParsedSignal;
 use can_dbc::ValueType as ParsedValueType;
 
@@ -30,11 +31,19 @@ impl From<&ParsedSignal> for SignalLayout {
             value_type: ValueType::from(value.value_type),
             factor: value.factor,
             offset: value.offset,
-            min: value.min,
-            max: value.max,
+            min: numeric_value_to_float(value.min),
+            max: numeric_value_to_float(value.max),
             bitvec_start: 0,
             bitvec_end: 0,
         }
+    }
+}
+
+fn numeric_value_to_float(value: NumericValue) -> f64 {
+    match value {
+        NumericValue::Uint(v) => v as f64,
+        NumericValue::Int(v) => v as f64,
+        NumericValue::Double(v) => v,
     }
 }
 
