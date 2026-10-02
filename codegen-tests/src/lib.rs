@@ -80,6 +80,7 @@ mod tests {
             lang,
             enum_other: false,
             enum_dedup: true,
+            id_checks: true,
             allow_unrestricted_ranges: false,
             rust_code_injections: HashMap::new(),
             cpp_code_injections: HashMap::new(),

@@ -37,6 +37,7 @@ pub struct CodegenConfig {
     pub lang: Language,
     pub enum_other: bool,
     pub enum_dedup: bool,
+    pub id_checks: bool,
     pub allow_unrestricted_ranges: bool,
     pub rust_code_injections: HashMap<RustCodeInjectionPoint, Vec<String>>,
     pub cpp_code_injections: HashMap<CppCodeInjectionPoint, Vec<String>>,

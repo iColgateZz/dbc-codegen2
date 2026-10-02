@@ -262,7 +262,7 @@ impl MessageDef<'_> {
         let doc = message_doc(&msg);
         let injected =
             rust_code_injection_tokens(self.config, RustCodeInjectionPoint::MessageStruct);
-        let can_msg_impl = Self::gen_can_message_impl(&name);
+        let can_msg_impl = Self::gen_can_message_impl(&name, self.config);
 
         quote! {
             #doc
@@ -298,7 +298,12 @@ impl MessageDef<'_> {
         .to_tokens(tokens);
     }
 
-    fn gen_can_message_impl(name: &Ident) -> TokenStream {
+    fn gen_can_message_impl(name: &Ident, config: &CodegenConfig) -> TokenStream {
+        let id_check = config.id_checks.then(|| quote! {
+            if frame.id() != Self::ID {
+                return Err(CanError::InvalidFrameId);
+            }
+        }).unwrap_or_default();
         quote! {
             impl GeneratedCanMessage for #name {
                 fn try_from_frame(frame: &impl Frame) -> Result<Self, CanError> {
@@ -306,9 +311,7 @@ impl MessageDef<'_> {
                         return Err(CanError::InvalidPayloadSize);
                     }
 
-                    if frame.id() != Self::ID {
-                        return Err(CanError::InvalidFrameId);
-                    }
+                    #id_check
 
                     let mut buf = [0u8; Self::LEN];
                     buf.copy_from_slice(&frame.data()[..Self::LEN]);
@@ -487,7 +490,7 @@ impl MessageDef<'_> {
         let message_struct_injected =
             rust_code_injection_tokens(self.config, RustCodeInjectionPoint::MessageStruct);
 
-        let can_msg_impl = Self::gen_can_message_impl(&name);
+        let can_msg_impl = Self::gen_can_message_impl(&name, self.config);
 
         quote! {
             #mux_enum_injected

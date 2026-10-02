@@ -352,7 +352,7 @@ impl CppGen {
         line!(out, "static constexpr std::size_t LEN{{{}}};", len);
     }
 
-    fn emit_try_from_frame(out: &mut Generator, msg_name: &str) {
+    fn emit_try_from_frame(out: &mut Generator, config: &CodegenConfig, msg_name: &str) {
         start_block!(
             out,
             "[[nodiscard]] static std::expected<{}, CanError> try_from_frame(CanId id, std::span<const uint8_t> frame) noexcept",
@@ -362,10 +362,12 @@ impl CppGen {
             out,
             "if (frame.size() < LEN) return std::unexpected(CanError::InvalidPayloadSize);"
         );
-        line!(
-            out,
-            "if (id != ID) return std::unexpected(CanError::InvalidFrameId);"
-        );
+        if config.id_checks {
+            line!(
+                out,
+                "if (id != ID) return std::unexpected(CanError::InvalidFrameId);"
+            );
+        }
         line!(out, "{} msg{{}};", msg_name);
         line!(out, "std::memcpy(msg.data_.data(), frame.data(), LEN);");
         end_block!(out, "return msg;");
@@ -1321,7 +1323,7 @@ impl CppGen {
 
                 Self::emit_create_method(out, &msg_name, &sigs, file);
 
-                Self::emit_try_from_frame(out, &msg_name);
+                Self::emit_try_from_frame(out, config, &msg_name);
 
                 Self::emit_signal_getters(out, &sigs, file, config);
                 Self::emit_signal_setters(out, &sigs, file, config);
@@ -1413,7 +1415,7 @@ impl CppGen {
                 end_block!(out, "return msg;");
                 empty!(out);
 
-                Self::emit_try_from_frame(out, &msg_name);
+                Self::emit_try_from_frame(out, config, &msg_name);
 
                 Self::emit_signal_getters(out, &plain_sigs, file, config);
                 Self::emit_signal_setters(out, &plain_sigs, file, config);
@@ -1678,7 +1680,7 @@ impl CppGen {
             "expect(std::get_if<{}>(&*parsed_result) != nullptr);",
             msg_name
         );
-        Self::emit_test_frame_error_assertions(out, &msg_name);
+        Self::emit_test_frame_error_assertions(out, config, &msg_name);
         Self::emit_test_invalid_enum_payload_assertions(out, &msg_name, signals, file, config);
 
         end_block!(out, "");
@@ -1880,7 +1882,7 @@ impl CppGen {
                 "expect(std::get_if<{}>(&*parsed_result) != nullptr);",
                 msg_name
             );
-            Self::emit_test_frame_error_assertions(out, &msg_name);
+            Self::emit_test_frame_error_assertions(out, config, &msg_name);
             Self::emit_test_invalid_mux_payload_assertion(out, &msg_name, mux_signal, muxed, file);
             Self::emit_test_invalid_enum_payload_assertions(out, &msg_name, plain, file, config);
             Self::emit_test_invalid_mux_enum_payload_assertions(
@@ -1899,16 +1901,22 @@ impl CppGen {
         empty!(out);
     }
 
-    fn emit_test_frame_error_assertions(out: &mut Generator, msg_name: &str) {
+    fn emit_test_frame_error_assertions(
+        out: &mut Generator,
+        config: &CodegenConfig,
+        msg_name: &str,
+    ) {
         line!(
             out,
             "auto wrong_id_result = {}::try_from_frame(UNKNOWN_FRAME_ID, encoded);",
             msg_name
         );
-        line!(
-            out,
-            "expect_error(wrong_id_result, CanError::InvalidFrameId);"
-        );
+        if config.id_checks {
+            line!(
+                out,
+                "expect_error(wrong_id_result, CanError::InvalidFrameId);"
+            );
+        }
         start_block!(out, "if constexpr ({}::LEN > 0)", msg_name);
         line!(
             out,

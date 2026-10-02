@@ -54,6 +54,9 @@ pub enum Command {
         /// are treated as one enum.
         #[arg(long, default_value = "false")]
         no_enum_dedup: bool,
+        /// Disable id checks in messages
+        #[arg(long, default_value = "false")]
+        no_id_checks: bool,
         /// Treat `[0|0]` ranges in signal definitions as "no range restriction".
         ///
         /// Some DBC files use `[0|0]` when vendors do not specify physical limits.
@@ -95,6 +98,7 @@ fn main() {
             lang,
             no_enum_other,
             no_enum_dedup,
+            no_id_checks,
             allow_unrestricted_ranges,
             generate_tests,
             separate,
@@ -105,6 +109,7 @@ fn main() {
                 lang,
                 enum_other: !no_enum_other,
                 enum_dedup: !no_enum_dedup,
+                id_checks: !no_id_checks,
                 allow_unrestricted_ranges,
                 rust_code_injections: HashMap::new(),
                 cpp_code_injections: HashMap::new(),
