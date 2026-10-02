@@ -3,7 +3,7 @@ name: Codegen Tests
 on:
   push:
     branches:
-      - main
+      - "*"
 
 jobs:
   generation-tests:
