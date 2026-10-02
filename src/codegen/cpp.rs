@@ -41,6 +41,12 @@ impl CppGen {
 
         line!(out, "#pragma once");
         empty!(out);
+        Self::includes(&mut out, config.generate_tests);
+        cpp_code_injections(&mut out, config, CppCodeInjectionPoint::Header);
+
+        if let Some(ref ns) = config.namespace {
+            line!(out, "namespace {ns} {{");
+        }
 
         Self::common_declarations(&mut out, file, config);
 
@@ -53,6 +59,10 @@ impl CppGen {
             Self::test_module(&mut out, file, config);
         }
         cpp_code_injections(&mut out, config, CppCodeInjectionPoint::Footer);
+
+        if let Some(ref ns) = config.namespace {
+            line!(out, "}}  // namespace {ns}");
+        }
 
         out.into_string()
     }
@@ -114,7 +124,17 @@ impl CppGen {
         line!(out, "#pragma once");
         empty!(out);
 
+        Self::includes(&mut out, config.generate_tests);
+
+        if let Some(ref ns) = config.namespace {
+            line!(out, "namespace {ns} {{");
+        }
+
         Self::common_declarations(&mut out, file, config);
+
+        if let Some(ref ns) = config.namespace {
+            line!(out, "}}  // namespace {ns}");
+        }
 
         out.into_string()
     }
@@ -132,7 +152,15 @@ impl CppGen {
         Self::include_local(&mut out, common_file_name);
         empty!(out);
 
+        if let Some(ref ns) = config.namespace {
+            line!(out, "namespace {ns} {{");
+        }
+
         Self::message(&mut out, message, file, config);
+
+        if let Some(ref ns) = config.namespace {
+            line!(out, "}}  // namespace {ns}");
+        }
 
         out.into_string()
     }
@@ -153,18 +181,24 @@ impl CppGen {
         }
         empty!(out);
 
+        if let Some(ref ns) = config.namespace {
+            line!(out, "namespace {ns} {{");
+        }
+
         Self::parse_can(&mut out, &file.messages, config);
         if config.generate_tests {
             Self::test_module(&mut out, file, config);
         }
         cpp_code_injections(&mut out, config, CppCodeInjectionPoint::Footer);
 
+        if let Some(ref ns) = config.namespace {
+            line!(out, "}}  // namespace {ns}");
+        }
+
         out.into_string()
     }
 
     fn common_declarations(out: &mut Generator, file: &DbcFile, config: &CodegenConfig) {
-        Self::includes(out, config.generate_tests);
-        cpp_code_injections(out, config, CppCodeInjectionPoint::Header);
         Self::errors(out, config);
         Self::can_id(out);
         Self::message_interface(out);

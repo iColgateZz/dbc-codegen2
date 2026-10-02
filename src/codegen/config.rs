@@ -42,6 +42,7 @@ pub struct CodegenConfig {
     pub cpp_code_injections: HashMap<CppCodeInjectionPoint, Vec<String>>,
     pub generate_tests: bool,
     pub separate: bool,
+    pub namespace: Option<String>,
 }
 
 impl CodegenConfig {

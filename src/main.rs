@@ -67,6 +67,9 @@ pub enum Command {
         /// [C++ only] Generate messages into separate files (.hpp)
         #[arg(long, default_value = "false")]
         separate: bool,
+        /// [C++ only] Wrap generated code into namespace
+        #[arg(long, default_value = "None")]
+        namespace: Option<String>,
     },
 }
 
@@ -98,6 +101,7 @@ fn main() {
             allow_unrestricted_ranges,
             generate_tests,
             separate,
+            namespace,
         } => {
             let mut config = CodegenConfig {
                 inputs,
@@ -110,6 +114,7 @@ fn main() {
                 cpp_code_injections: HashMap::new(),
                 generate_tests,
                 separate,
+                namespace,
             };
 
             config.add_rust_code_injection(

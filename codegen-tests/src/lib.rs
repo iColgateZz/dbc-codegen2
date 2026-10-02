@@ -68,7 +68,13 @@ mod tests {
         file.starts_with(Path::new(DBC_DIR).join("currently-work"))
     }
 
-    fn generate(input: &Path, output: &str, lang: Language, separate: bool) -> Result<()> {
+    fn generate(
+        input: &Path,
+        output: &str,
+        lang: Language,
+        separate: bool,
+        namespace: Option<String>,
+    ) -> Result<()> {
         let mut config = CodegenConfig {
             inputs: vec![
                 input
@@ -85,6 +91,7 @@ mod tests {
             cpp_code_injections: HashMap::new(),
             generate_tests: true,
             separate,
+            namespace,
         };
 
         config.add_rust_code_injection(
@@ -119,7 +126,7 @@ mod tests {
     }
 
     fn rust_fixture(file: &Path) -> Result<()> {
-        generate(file, GENERATED_RUST_FILE, Language::Rust, false)
+        generate(file, GENERATED_RUST_FILE, Language::Rust, false, None)
             .with_context(|| format!("Codegen failed for {:?}", file))?;
 
         let mut check = Command::new("cargo");
@@ -132,18 +139,26 @@ mod tests {
         run_quiet(&mut test, "cargo test").with_context(|| format!("Test failed for {:?}", file))
     }
 
-    fn write_cpp_runner(dir: &Path) -> Result<PathBuf> {
+    fn write_cpp_runner(dir: &Path, ns: &str) -> Result<PathBuf> {
         let runner = dir.join("generated_tests.cpp");
         fs::write(
             &runner,
-            "#include \"generated.hpp\"\n\nint main() {\n  generated_tests::run_all();\n  return 0;\n}\n",
+            format!(
+                "#include \"generated.hpp\"\n\nint main() {{\n  {ns}generated_tests::run_all();\n  return 0;\n}}\n"
+            ),
         )?;
         Ok(runner)
     }
 
     fn cpp_fixture(file: &Path, runner: &Path, binary: &Path) -> Result<()> {
-        generate(file, GENERATED_CPP_FILE, Language::Cpp, false)
-            .with_context(|| format!("Codegen failed for {:?}", file))?;
+        generate(
+            file,
+            GENERATED_CPP_FILE,
+            Language::Cpp,
+            false,
+            Some(String::from("foo")),
+        )
+        .with_context(|| format!("Codegen failed for {:?}", file))?;
 
         let compiler = env::var("CXX").unwrap_or_else(|_| "c++".to_string());
         let include_dir = Path::new(GENERATED_CPP_FILE).parent().unwrap();
@@ -174,6 +189,7 @@ mod tests {
             output.to_str().context("invalid UTF-8 in output path")?,
             Language::Cpp,
             true,
+            Some(String::from("foo::bar")),
         )
         .with_context(|| format!("Codegen failed for {:?}", file))?;
 
@@ -300,7 +316,7 @@ mod tests {
     #[test]
     fn test_all_dbc_files_cpp() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
-        let runner = write_cpp_runner(temp_dir.path())?;
+        let runner = write_cpp_runner(temp_dir.path(), "foo::")?;
         let binary = temp_dir.path().join("generated_tests");
 
         run_fixtures(GENERATED_CPP_FILE, |file| {
@@ -311,7 +327,7 @@ mod tests {
     #[test]
     fn test_cpp_separate_generation() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
-        let runner = write_cpp_runner(temp_dir.path())?;
+        let runner = write_cpp_runner(temp_dir.path(), "foo::bar::")?;
         let binary = temp_dir.path().join("generated_tests");
         let output = temp_dir.path().join("generated");
         let input = Path::new(DBC_DIR).join("currently-work/example.dbc");
